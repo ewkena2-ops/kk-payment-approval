@@ -207,10 +207,11 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 
 .sig-overlay{position:fixed;inset:0;background:rgba(21,24,28,.55);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
 .sig-overlay.on{display:flex}
-.sig-box{background:#fff;border:1px solid var(--ink);border-radius:2px;padding:16px;width:min(560px,100%)}
+.sig-box{background:#fff;border:1px solid var(--ink);border-radius:2px;padding:16px;width:min(760px,100%)}
 .sig-head{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;margin-bottom:10px}
-#sigPad{width:100%;height:180px;border:1px dashed var(--rule);border-radius:2px;background:#FBFBFC;touch-action:none;display:block}
-#vApprover img{height:30px;display:block;margin-top:-4px}
+.padbox{width:100%;height:280px;border:1px dashed var(--rule);border-radius:2px;background:#FBFBFC;touch-action:none;display:block;-webkit-user-select:none;user-select:none}
+@media(max-height:640px){.padbox{height:200px}}
+#vApprover img{height:34px;display:block;margin-top:-6px}
 
 .toast{
   position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);
@@ -235,7 +236,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v4</div>
+    <div class="tool">Cash-Out Approval · Internal · v5</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -243,7 +244,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <main class="shell">
 
   <!-- ============ REQUEST ============ -->
-  <section class="panel no-print">
+  <section class="panel no-print" id="formPanel">
     <div class="panel-head">
       <h2>New request</h2>
       <div class="hint" id="voucherNo">KK-PAY-0000</div>
@@ -397,7 +398,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
       <div class="stamp" id="stamp"><span id="stampText">Approved</span><span class="meta" id="stampMeta"></span></div>
     </div>
 
-    <div class="panel no-print" style="margin-top:16px">
+    <div class="panel no-print" id="decisionPanel" style="margin-top:16px">
       <div class="panel-head"><h2>Decision</h2><div class="hint" id="decisionHint">Select a request from the log</div></div>
       <div class="panel-body">
         <div class="row two">
@@ -415,16 +416,48 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
           <button class="btn hold" id="holdBtn" disabled>Put on hold</button>
           <button class="btn no" id="rejectBtn" disabled>Reject</button>
           <button class="btn" id="signBtn" disabled>Sign on screen</button>
-          <button class="btn solid" id="pdfFormBtn">Approval PDF to send</button>
+          <button class="btn solid" id="linkBtn" disabled>Approval link to send</button>
+          <button class="btn" id="pdfFormBtn">Approval PDF to send</button>
           <button class="btn" id="pdfBtn">Final PDF</button>
           <button class="btn ghost" id="printBtn">Print</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel no-print" id="remotePanel" style="display:none;margin-top:16px">
+      <div class="panel-head"><h2>Your decision</h2><div class="hint">Tick · sign with your finger · send back</div></div>
+      <div class="panel-body">
+        <div class="seg" role="group" aria-label="Decision" style="grid-template-columns:1fr 1fr 1fr">
+          <button type="button" class="rdec" data-d="approved" aria-pressed="false">Approve</button>
+          <button type="button" class="rdec" data-d="hold" aria-pressed="false">Hold</button>
+          <button type="button" class="rdec" data-d="rejected" aria-pressed="false">Reject</button>
+        </div>
+        <div class="row two field">
+          <div>
+            <label class="lbl" for="rAmt">Approved amount (ETB)</label>
+            <input class="in" id="rAmt" inputmode="decimal" placeholder="Leave blank = full amount">
+          </div>
+          <div>
+            <label class="lbl" for="rName">Your name</label>
+            <input class="in" id="rName" value="Amare Feleke" autocomplete="off">
+          </div>
+        </div>
+        <div class="field">
+          <label class="lbl">Sign here with your finger</label>
+          <canvas id="rPad" class="padbox"></canvas>
+          <div class="actions" style="margin-top:8px">
+            <button class="btn ghost" id="rClear">Clear signature</button>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn solid" id="rSend">Send decision back</button>
         </div>
       </div>
     </div>
   </section>
 
   <!-- ============ LOG ============ -->
-  <section class="panel no-print" style="grid-column:1/-1">
+  <section class="panel no-print" id="logPanel" style="grid-column:1/-1">
     <div class="panel-head">
       <h2>Request log</h2>
       <div class="tools">
@@ -459,7 +492,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <div class="sig-overlay no-print" id="sigOverlay">
   <div class="sig-box">
     <div class="sig-head">Sign here</div>
-    <canvas id="sigPad"></canvas>
+    <canvas id="sigPad" class="padbox"></canvas>
     <div class="actions" style="margin-top:12px">
       <button class="btn solid" id="sigSave">Save signature</button>
       <button class="btn ghost" id="sigClear">Clear</button>
@@ -669,7 +702,7 @@ function renderVoucherFromRecord(r){
   $("approver").value = r.approver || $("approver").value;
 }
 function setDecisionEnabled(on){
-  ["approveBtn","holdBtn","rejectBtn","signBtn"].forEach(function(id){ $(id).disabled = !on; });
+  ["approveBtn","holdBtn","rejectBtn","signBtn","linkBtn"].forEach(function(id){ $(id).disabled = !on; });
 }
 
 ["amount","payee","requester","note","project","needed"].forEach(function(id){
@@ -738,57 +771,180 @@ function decide(status){
   renderVoucherFromRecord(current);
   toast(current.no+" · "+status);
 }
-/* ---------- signature pad ---------- */
-var sigDrawn = false;
+/* ---------- signature pad (finger, stylus, or mouse) ---------- */
+function makePad(c){
+  var st = {drawn:false};
+  function ctx(){ return c.getContext("2d"); }
+  st.resize = function(){
+    var r = c.getBoundingClientRect();
+    var dpr = window.devicePixelRatio||1;
+    c.width = Math.round(r.width*dpr);
+    c.height = Math.round(r.height*dpr);
+    var x = ctx();
+    x.scale(dpr,dpr);
+    x.lineWidth = 2.4; x.lineCap = "round"; x.lineJoin = "round"; x.strokeStyle = "#15181C";
+    st.drawn = false;
+  };
+  st.clear = function(){
+    ctx().clearRect(0, 0, c.width, c.height);
+    st.drawn = false;
+  };
+  st.dataURL = function(){ return c.toDataURL("image/png"); };
+  var drawing = false;
+  function pos(e){
+    var r = c.getBoundingClientRect();
+    var t = (e.touches && e.touches[0]) || e;
+    return [t.clientX - r.left, t.clientY - r.top];
+  }
+  function down(e){
+    drawing = true; st.drawn = true;
+    var p = pos(e), x = ctx();
+    x.beginPath(); x.moveTo(p[0], p[1]); x.lineTo(p[0]+0.1, p[1]+0.1); x.stroke();
+    if(e.pointerId != null && c.setPointerCapture){ try{ c.setPointerCapture(e.pointerId); }catch(_){ } }
+    e.preventDefault();
+  }
+  function move(e){
+    if(!drawing) return;
+    var p = pos(e), x = ctx();
+    x.lineTo(p[0], p[1]); x.stroke();
+    e.preventDefault();
+  }
+  function up(){ drawing = false; }
+  if(window.PointerEvent){
+    c.addEventListener("pointerdown", down);
+    c.addEventListener("pointermove", move);
+    c.addEventListener("pointerup", up);
+    c.addEventListener("pointercancel", up);
+    c.addEventListener("touchstart", function(e){ e.preventDefault(); }, {passive:false});
+    c.addEventListener("touchmove", function(e){ e.preventDefault(); }, {passive:false});
+  }else{
+    c.addEventListener("touchstart", down, {passive:false});
+    c.addEventListener("touchmove", move, {passive:false});
+    c.addEventListener("touchend", up);
+    c.addEventListener("mousedown", down);
+    c.addEventListener("mousemove", move);
+    c.addEventListener("mouseup", up);
+  }
+  return st;
+}
+
+var sigPadCtl = makePad($("sigPad"));
 function openSig(){
   if(!current){ toast("Select a request first"); return; }
   $("sigOverlay").classList.add("on");
-  var c = $("sigPad");
-  var r = c.getBoundingClientRect();
-  var dpr = window.devicePixelRatio||1;
-  c.width = Math.round(r.width*dpr);
-  c.height = Math.round(r.height*dpr);
-  var ctx = c.getContext("2d");
-  ctx.scale(dpr,dpr);
-  ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#15181C";
-  sigDrawn = false;
+  sigPadCtl.resize();
 }
 function closeSig(){ $("sigOverlay").classList.remove("on"); }
-(function(){
-  var c = $("sigPad"), drawing = false, ctx = null;
-  function pos(e){ var r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
-  c.addEventListener("pointerdown", function(e){
-    drawing = true; sigDrawn = true;
-    ctx = c.getContext("2d");
-    var p = pos(e);
-    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0]+0.1, p[1]+0.1); ctx.stroke();
-    c.setPointerCapture(e.pointerId);
-    e.preventDefault();
-  });
-  c.addEventListener("pointermove", function(e){
-    if(!drawing) return;
-    var p = pos(e);
-    ctx.lineTo(p[0], p[1]); ctx.stroke();
-    e.preventDefault();
-  });
-  c.addEventListener("pointerup", function(){ drawing = false; });
-  c.addEventListener("pointercancel", function(){ drawing = false; });
-})();
 $("signBtn").onclick = openSig;
 $("sigCancel").onclick = closeSig;
-$("sigClear").onclick = function(){
-  var c = $("sigPad");
-  c.getContext("2d").clearRect(0, 0, c.width, c.height);
-  sigDrawn = false;
-};
+$("sigClear").onclick = function(){ sigPadCtl.clear(); };
 $("sigSave").onclick = function(){
   if(!current){ closeSig(); return; }
-  if(!sigDrawn){ toast("Draw the signature first"); return; }
-  current.signature = $("sigPad").toDataURL("image/png");
+  if(!sigPadCtl.drawn){ toast("Draw the signature first"); return; }
+  current.signature = sigPadCtl.dataURL();
   saveAll();
   renderVoucherFromRecord(current);
   closeSig();
   toast("Signature saved");
+};
+
+/* ---------- approval link (he opens, ticks, signs with finger, sends back) ---------- */
+function b64e(o){
+  return btoa(unescape(encodeURIComponent(JSON.stringify(o))))
+    .replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function b64d(s){
+  s = s.replace(/-/g,"+").replace(/_/g,"/");
+  while(s.length % 4) s += "=";
+  return JSON.parse(decodeURIComponent(escape(atob(s))));
+}
+var APPROVAL = null;
+(function(){
+  var m = location.hash.match(/^#a=(.+)/);
+  if(m){ try{ APPROVAL = b64d(m[1]); }catch(e){ APPROVAL = null; } }
+})();
+
+$("linkBtn").onclick = function(){
+  if(!current){ toast("Save or select a request first"); return; }
+  var d = {
+    no: current.no, date: current.date, chargeTo: current.chargeTo,
+    category: current.category, payee: current.payee, amount: current.amount,
+    method: current.method, needed: current.needed, requester: current.requester, note: current.note
+  };
+  var url = location.href.split("#")[0] + "#a=" + b64e(d);
+  if(navigator.share){
+    navigator.share({title:"Payment approval "+d.no, text:"Please approve and sign "+d.no+":", url:url}).catch(function(){});
+  }else if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){ toast("Link copied — paste it in WhatsApp"); });
+  }else{
+    window.prompt("Copy this link and send it:", url);
+  }
+};
+
+var rDecision = null;
+var rPadCtl = makePad($("rPad"));
+function previewRemote(){
+  if(!APPROVAL) return;
+  var st = $("stamp");
+  var name = ($("rName").value||"").trim() || SIGNER;
+  if(rDecision){
+    st.className = "stamp show " + rDecision;
+    $("stampText").textContent = rDecision==="approved" ? "Approved" : (rDecision==="hold" ? "On hold" : "Rejected");
+    $("stampMeta").textContent = name + " · " + fmtDate(today());
+  }else{
+    st.className = "stamp";
+  }
+  var shown = APPROVAL.amount;
+  if(rDecision==="approved"){
+    var a = parseAmt($("rAmt").value);
+    if(a > 0) shown = a;
+  }
+  $("vAmount").textContent = money(shown);
+  $("vWords").textContent = birrWords(shown);
+  $("vSignLine").textContent = "Approved by · " + name;
+}
+Array.prototype.forEach.call(document.querySelectorAll(".rdec"), function(b){
+  b.onclick = function(){
+    rDecision = b.dataset.d;
+    Array.prototype.forEach.call(document.querySelectorAll(".rdec"), function(x){
+      x.setAttribute("aria-pressed", x===b);
+    });
+    previewRemote();
+  };
+});
+$("rAmt").addEventListener("input", previewRemote);
+$("rName").addEventListener("input", previewRemote);
+$("rClear").onclick = function(){ rPadCtl.clear(); $("vApprover").innerHTML = ""; };
+$("rSend").onclick = function(){
+  if(!rDecision){ toast("Tick Approve, Hold or Reject first"); return; }
+  if(!($("rName").value||"").trim()){ toast("Enter your name"); $("rName").focus(); return; }
+  if(rPadCtl.drawn){
+    $("vApprover").innerHTML = '<img src="'+rPadCtl.dataURL()+'" alt="signature">';
+  }
+  previewRemote();
+  var btn = $("rSend");
+  btn.disabled = true; btn.textContent = "Preparing…";
+  function done(){ btn.disabled = false; btn.textContent = "Send decision back"; }
+  if(!window.html2canvas){ done(); toast("Could not render — take a screenshot of the voucher instead"); return; }
+  html2canvas($("voucher"), {scale:2, backgroundColor:"#ffffff", useCORS:true, logging:false})
+    .then(function(canvas){
+      var fname = (APPROVAL.no || "KK-PAY") + "-DECISION.png";
+      function dl(){
+        var a = document.createElement("a");
+        a.href = canvas.toDataURL("image/png"); a.download = fname; a.click();
+        toast("Image saved — now send it back on WhatsApp");
+      }
+      canvas.toBlob(function(blob){
+        var file = (blob && window.File) ? new File([blob], fname, {type:"image/png"}) : null;
+        if(file && navigator.canShare && navigator.canShare({files:[file]})){
+          navigator.share({files:[file], title:fname}).catch(function(){ dl(); });
+        }else{
+          dl();
+        }
+        done();
+      }, "image/png");
+    })
+    .catch(function(){ done(); toast("Could not render — take a screenshot of the voucher instead"); });
 };
 
 $("approveBtn").onclick=function(){ decide("approved"); };
@@ -979,13 +1135,28 @@ function tick(){
 }
 tick(); setInterval(tick,30000);
 
-$("needed").value = today();
-loadAll().then(function(list){
-  records = Array.isArray(list)?list:[];
-  renderLog();
-  $("voucherNo").textContent = nextNo();
-  renderVoucherFromForm();
-});
+if(APPROVAL){
+  $("formPanel").style.display = "none";
+  $("logPanel").style.display = "none";
+  $("decisionPanel").style.display = "none";
+  $("remotePanel").style.display = "";
+  renderVoucherFromRecord({
+    no: APPROVAL.no, date: APPROVAL.date, chargeTo: APPROVAL.chargeTo,
+    category: APPROVAL.category, payee: APPROVAL.payee, amount: APPROVAL.amount,
+    approvedAmount: null, method: APPROVAL.method, needed: APPROVAL.needed,
+    requester: APPROVAL.requester, note: APPROVAL.note,
+    status: "pending", approver: "", decidedAt: "", signature: null
+  });
+  rPadCtl.resize();
+}else{
+  $("needed").value = today();
+  loadAll().then(function(list){
+    records = Array.isArray(list)?list:[];
+    renderLog();
+    $("voucherNo").textContent = nextNo();
+    renderVoucherFromForm();
+  });
+}
 
 })();
 </script>
