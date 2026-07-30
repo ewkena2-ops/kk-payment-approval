@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Klever Küche — Cash-Out Approval</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --ink:#15181C;
+  --paper:#E9EBEE;
+  --card:#FFFFFF;
+  --rule:#C7CCD3;
+  --rule-soft:#E2E5E9;
+  --steel:#5A6572;
+  --gold:#C9930F;
+  --green:#186B45;
+  --red:#B32424;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
+  --disp:"Helvetica Neue",Inter,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--disp);
+  font-size:14px;
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+
+/* ---------- masthead ---------- */
+.masthead{
+  background:var(--ink);color:#fff;
+  padding:14px 20px 12px;
+  border-bottom:3px solid var(--gold);
+}
+.masthead .wrap{max-width:1180px;margin:0 auto;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:.18em;text-transform:uppercase;font-size:15px}
+.brand span{color:var(--gold)}
+.masthead .tool{
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:#9AA3AD;border-left:1px solid #39404A;padding-left:14px;
+}
+.masthead .clock{margin-left:auto;font-family:var(--mono);font-size:11px;color:#9AA3AD}
+
+/* ---------- shell ---------- */
+.shell{max-width:1180px;margin:0 auto;padding:22px 20px 60px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:22px;align-items:start}
+@media(max-width:900px){.shell{grid-template-columns:1fr;padding:16px 14px 48px}}
+
+.panel{background:var(--card);border:1px solid var(--rule);border-radius:2px}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 16px;border-bottom:1px solid var(--rule-soft);
+}
+.panel-head h2{
+  margin:0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+}
+.panel-head .hint{font-family:var(--mono);font-size:10.5px;color:var(--steel);letter-spacing:.06em}
+.panel-body{padding:16px}
+
+/* ---------- form ---------- */
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--ink);border-radius:2px;overflow:hidden}
+.seg button{
+  background:#fff;border:0;padding:11px 8px;cursor:pointer;
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;
+}
+.seg button+button{border-left:1px solid var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+
+.field{margin-top:14px}
+label.lbl{
+  display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--steel);margin-bottom:5px;
+}
+.in{
+  width:100%;padding:9px 10px;background:#FBFBFC;border:1px solid var(--rule);
+  border-radius:2px;outline:none;
+}
+.in:focus{border-color:var(--ink);background:#fff;box-shadow:0 0 0 2px rgba(21,24,28,.12)}
+textarea.in{resize:vertical;min-height:62px}
+.row{display:grid;gap:12px}
+.row.two{grid-template-columns:1fr 1fr}
+.row.three{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:560px){.row.two,.row.three{grid-template-columns:1fr}}
+
+.amount-in{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.01em;padding:10px 12px}
+.money-wrap{display:flex;align-items:stretch;border:1px solid var(--rule);border-radius:2px;background:#FBFBFC}
+.money-wrap:focus-within{border-color:var(--ink);background:#fff;box-shadow:0 0 0 2px rgba(21,24,28,.12)}
+.money-wrap .cur{
+  display:flex;align-items:center;padding:0 12px;background:var(--ink);color:#fff;
+  font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+}
+.money-wrap input{flex:1;border:0;background:transparent;outline:none}
+
+.flag{
+  display:none;margin-top:10px;padding:9px 11px;border-left:3px solid var(--red);
+  background:#FBEDED;font-size:12.5px;color:#7A1A1A;
+}
+.flag.on{display:block}
+
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.btn{
+  padding:10px 16px;border:1px solid var(--ink);background:#fff;border-radius:2px;cursor:pointer;
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;
+}
+.btn:hover{background:#F1F2F4}
+.btn.solid{background:var(--ink);color:#fff}
+.btn.solid:hover{background:#2A2F36}
+.btn.ghost{border-color:var(--rule);color:var(--steel)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.ok{border-color:var(--green);color:var(--green)}
+.btn.ok:hover{background:var(--green);color:#fff}
+.btn.no{border-color:var(--red);color:var(--red)}
+.btn.no:hover{background:var(--red);color:#fff}
+.btn.hold{border-color:var(--gold);color:#8A6408}
+.btn.hold:hover{background:var(--gold);color:#fff}
+
+/* ---------- voucher ---------- */
+.voucher{background:#fff;border:1px solid var(--ink);border-radius:2px;position:relative;overflow:hidden}
+.voucher::before{content:"";position:absolute;inset:6px;border:1px solid var(--rule-soft);pointer-events:none}
+.v-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 20px 12px;gap:12px}
+.v-head .who{font-weight:700;letter-spacing:.16em;text-transform:uppercase;font-size:12px}
+.v-head .who span{color:var(--gold)}
+.v-head .sub{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--steel);margin-top:3px}
+.v-no{text-align:right;font-family:var(--mono);font-size:10px;color:var(--steel);letter-spacing:.08em}
+.v-no strong{display:block;font-size:14px;color:var(--ink);letter-spacing:.04em;margin-top:2px}
+
+.v-amount{padding:6px 20px 16px;border-bottom:1px solid var(--rule-soft)}
+.v-amount .cap{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--steel)}
+.v-amount .big{
+  font-family:var(--mono);font-size:clamp(34px,7vw,50px);font-weight:700;letter-spacing:-.02em;
+  line-height:1;margin-top:6px;font-variant-numeric:tabular-nums;
+}
+.v-amount .big em{font-style:normal;font-size:.42em;letter-spacing:.06em;color:var(--steel);margin-left:8px;vertical-align:.3em}
+.v-amount .words{
+  margin-top:8px;font-size:12.5px;font-style:italic;color:#33393F;
+  border-bottom:1px dotted var(--rule);padding-bottom:6px;
+}
+
+.v-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.v-cell{padding:11px 20px;border-bottom:1px solid var(--rule-soft)}
+.v-cell:nth-child(odd){border-right:1px solid var(--rule-soft)}
+.v-cell .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--steel)}
+.v-cell .v{margin-top:3px;font-size:13.5px;word-break:break-word}
+.v-note{padding:11px 20px;border-bottom:1px solid var(--rule-soft);min-height:52px}
+
+.v-sign{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.v-sign div{padding:22px 20px 12px}
+.v-sign div:first-child{border-right:1px solid var(--rule-soft)}
+.v-sign .line{border-top:1px solid var(--ink);padding-top:5px;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--steel)}
+
+.stamp{
+  position:absolute;right:22px;bottom:74px;transform:rotate(-11deg);
+  border:3px double currentColor;border-radius:3px;padding:6px 14px;
+  font-weight:800;letter-spacing:.2em;text-transform:uppercase;font-size:17px;
+  opacity:0;transition:opacity .25s ease, transform .25s ease;
+}
+.stamp .meta{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;font-weight:500;margin-top:3px;text-align:center}
+.stamp.show{opacity:.92;transform:rotate(-7deg) scale(1)}
+.stamp.approved{color:var(--green)}
+.stamp.rejected{color:var(--red)}
+.stamp.hold{color:var(--gold)}
+@media (prefers-reduced-motion:reduce){.stamp{transition:none}}
+
+/* ---------- log ---------- */
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chip{
+  padding:5px 10px;border:1px solid var(--rule);background:#fff;border-radius:999px;cursor:pointer;
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel);
+}
+.chip[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+table{width:100%;border-collapse:collapse}
+th{
+  text-align:left;font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--steel);font-weight:500;padding:7px 8px;border-bottom:1px solid var(--rule);
+}
+td{padding:9px 8px;border-bottom:1px solid var(--rule-soft);font-size:12.5px;vertical-align:top}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:#F5F6F8}
+td.num{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
+.tag{
+  display:inline-block;padding:2px 7px;border-radius:2px;font-family:var(--mono);
+  font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+}
+.tag.pending{background:#FBF2DA;color:#8A6408}
+.tag.approved{background:#E1F0E8;color:var(--green)}
+.tag.rejected{background:#FAE6E6;color:var(--red)}
+.tag.hold{background:#EDEFF2;color:var(--steel)}
+.totals{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--rule)}
+.totals div{padding:11px 12px}
+.totals div+div{border-left:1px solid var(--rule-soft)}
+.totals .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--steel)}
+.totals .v{font-family:var(--mono);font-size:16px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
+.empty{padding:26px 16px;text-align:center;color:var(--steel);font-size:13px}
+
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);
+  background:var(--ink);color:#fff;padding:11px 18px;border-radius:2px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---------- print ---------- */
+@media print{
+  body{background:#fff}
+  .no-print{display:none !important}
+  .shell{display:block;padding:0;max-width:none}
+  .voucher{border:1px solid #000;page-break-inside:avoid}
+  .stamp{opacity:1 !important}
+}
+</style>
+</head>
+<body>
+
+<header class="masthead no-print">
+  <div class="wrap">
+    <div class="brand">Klever <span>Küche</span></div>
+    <div class="tool">Cash-Out Approval · Internal</div>
+    <div class="clock" id="clock"></div>
+  </div>
+</header>
+
+<main class="shell">
+
+  <!-- ============ REQUEST ============ -->
+  <section class="panel no-print">
+    <div class="panel-head">
+      <h2>New request</h2>
+      <div class="hint" id="voucherNo">KK-PAY-0000</div>
+    </div>
+    <div class="panel-body">
+
+      <div class="seg" role="group" aria-label="Request type">
+        <button type="button" id="btnProject" aria-pressed="true">Project spend</button>
+        <button type="button" id="btnOther" aria-pressed="false">Running cost</button>
+      </div>
+
+      <div class="field" id="projectField">
+        <label class="lbl" for="project">Project code</label>
+        <input class="in" id="project" list="projects" placeholder="KK148 / RBT 3269" autocomplete="off">
+        <datalist id="projects">
+          <option value="KK121"><option value="KK136"><option value="KK140">
+          <option value="KK148"><option value="KK149"><option value="KK117">
+          <option value="KK106"><option value="KK89"><option value="KK75">
+          <option value="RBT 2884"><option value="RBT 2997"><option value="RBT 3246"><option value="RBT 3269">
+        </datalist>
+        <div class="flag" id="pausedFlag">Purchasing on this project is on hold for cash flow. Approve only if it unblocks delivery.</div>
+      </div>
+
+      <div class="field" id="reasonField" style="display:none">
+        <label class="lbl" for="reason">What is it for</label>
+        <select class="in" id="reason">
+          <option>Salary / wages</option>
+          <option>Rent</option>
+          <option>Utilities</option>
+          <option>Transport / delivery</option>
+          <option>Machine repair</option>
+          <option>Tools &amp; consumables</option>
+          <option>Fuel</option>
+          <option>Tax / government fee</option>
+          <option>Marketing</option>
+          <option>Other</option>
+        </select>
+      </div>
+
+      <div class="row two field">
+        <div>
+          <label class="lbl" for="category">Spend category</label>
+          <select class="in" id="category">
+            <option>MDF / panel</option>
+            <option>Edge band</option>
+            <option>Hardware &amp; accessories</option>
+            <option>Hinges / slides</option>
+            <option>Handles</option>
+            <option>Countertop</option>
+            <option>Sink &amp; tap</option>
+            <option>Paint / finishing</option>
+            <option>Glue &amp; fixings</option>
+            <option>Labour / subcontract</option>
+            <option>Transport</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="lbl" for="payee">Pay to</label>
+          <input class="in" id="payee" placeholder="Supplier or person" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="amount">Amount</label>
+        <div class="money-wrap">
+          <div class="cur">ETB</div>
+          <input class="amount-in" id="amount" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="row three field">
+        <div>
+          <label class="lbl" for="method">Pay by</label>
+          <select class="in" id="method">
+            <option>Cash</option>
+            <option>CBE transfer</option>
+            <option>Telebirr</option>
+            <option>Cheque</option>
+            <option>Bank — other</option>
+          </select>
+        </div>
+        <div>
+          <label class="lbl" for="needed">Needed by</label>
+          <input class="in" id="needed" type="date">
+        </div>
+        <div>
+          <label class="lbl" for="requester">Requested by</label>
+          <input class="in" id="requester" placeholder="Name" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="note">Description</label>
+        <textarea class="in" id="note" placeholder="What exactly is being bought, quantity, and why now"></textarea>
+      </div>
+
+      <div class="actions">
+        <button class="btn solid" id="saveBtn">Save request</button>
+        <button class="btn ghost" id="clearBtn">Clear form</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VOUCHER + DECISION ============ -->
+  <section>
+    <div class="voucher" id="voucher">
+      <div class="v-head">
+        <div>
+          <div class="who">Klever <span>Küche</span></div>
+          <div class="sub">Klever Addis Trading P.L.C. · Addis Ababa</div>
+        </div>
+        <div class="v-no">
+          Payment voucher
+          <strong id="vNo">KK-PAY-0000</strong>
+          <span id="vDate">—</span>
+        </div>
+      </div>
+
+      <div class="v-amount">
+        <div class="cap">Amount to release</div>
+        <div class="big"><span id="vAmount">0.00</span><em>ETB</em></div>
+        <div class="words" id="vWords">Zero Birr only</div>
+      </div>
+
+      <div class="v-grid">
+        <div class="v-cell"><div class="k">Charge to</div><div class="v" id="vCharge">—</div></div>
+        <div class="v-cell"><div class="k">Category</div><div class="v" id="vCategory">—</div></div>
+        <div class="v-cell"><div class="k">Pay to</div><div class="v" id="vPayee">—</div></div>
+        <div class="v-cell"><div class="k">Pay by</div><div class="v" id="vMethod">—</div></div>
+        <div class="v-cell"><div class="k">Needed by</div><div class="v" id="vNeeded">—</div></div>
+        <div class="v-cell"><div class="k">Requested by</div><div class="v" id="vRequester">—</div></div>
+      </div>
+
+      <div class="v-note"><div class="k" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--steel)">Description</div>
+        <div class="v" id="vNote" style="margin-top:3px;font-size:13px">—</div>
+      </div>
+
+      <div class="v-sign">
+        <div><div style="height:26px"></div><div class="line">Requested by</div></div>
+        <div><div style="height:26px;font-size:13px" id="vApprover"></div><div class="line" id="vSignLine">Approved by · Amare Feleke</div></div>
+      </div>
+
+      <div class="stamp" id="stamp"><span id="stampText">Approved</span><span class="meta" id="stampMeta"></span></div>
+    </div>
+
+    <div class="panel no-print" style="margin-top:16px">
+      <div class="panel-head"><h2>Decision</h2><div class="hint" id="decisionHint">Select a request from the log</div></div>
+      <div class="panel-body">
+        <div class="row two">
+          <div>
+            <label class="lbl" for="approver">Approver name</label>
+            <input class="in" id="approver" value="Amare Feleke" placeholder="Who is signing" autocomplete="off">
+          </div>
+          <div>
+            <label class="lbl" for="approvedAmt">Approved amount (ETB)</label>
+            <input class="in" id="approvedAmt" inputmode="decimal" placeholder="Leave blank to approve in full">
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn ok" id="approveBtn" disabled>Approve</button>
+          <button class="btn hold" id="holdBtn" disabled>Put on hold</button>
+          <button class="btn no" id="rejectBtn" disabled>Reject</button>
+          <button class="btn solid" id="pdfFormBtn">Approval PDF to send</button>
+          <button class="btn" id="pdfBtn">Final PDF</button>
+          <button class="btn ghost" id="printBtn">Print</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LOG ============ -->
+  <section class="panel no-print" style="grid-column:1/-1">
+    <div class="panel-head">
+      <h2>Request log</h2>
+      <div class="tools">
+        <button class="chip" data-filter="all" aria-pressed="true">All</button>
+        <button class="chip" data-filter="pending" aria-pressed="false">Pending</button>
+        <button class="chip" data-filter="approved" aria-pressed="false">Approved</button>
+        <button class="chip" data-filter="hold" aria-pressed="false">On hold</button>
+        <button class="chip" data-filter="rejected" aria-pressed="false">Rejected</button>
+        <button class="chip" id="csvBtn">Export CSV</button>
+      </div>
+    </div>
+    <div id="logWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Voucher</th><th>Date</th><th>Charge to</th><th>Pay to</th>
+            <th style="text-align:right">Requested</th><th style="text-align:right">Approved</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
+      <div class="empty" id="logEmpty">No requests yet. Fill the form and save one.</div>
+    </div>
+    <div class="totals">
+      <div><div class="k">Pending</div><div class="v" id="tPending">0.00</div></div>
+      <div><div class="k">Approved</div><div class="v" id="tApproved">0.00</div></div>
+      <div><div class="k">Rejected / hold</div><div class="v" id="tOther">0.00</div></div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- state ---------- */
+var PAUSED = ["RBT 3269","RBT 3246","KK89","KK106","RBT 2884","RBT 2997","KK136"];
+var SIGNER = "Amare Feleke";
+var KEY = "kk:payvouchers:v1";
+var records = [];
+var current = null;      // record being viewed
+var filter = "all";
+var memFallback = null;
+
+/* ---------- storage (Claude storage → localStorage → memory) ---------- */
+function lsGet(){
+  try{ var v = window.localStorage.getItem(KEY); return v?JSON.parse(v):null; }catch(e){ return null; }
+}
+function lsSet(){
+  try{ window.localStorage.setItem(KEY, JSON.stringify(records)); return true; }catch(e){ return false; }
+}
+function loadAll(){
+  return new Promise(function(res){
+    if(window.storage && window.storage.get){
+      window.storage.get(KEY).then(function(r){
+        try{ res(r && r.value ? JSON.parse(r.value) : (lsGet()||[])); }catch(e){ res(lsGet()||[]); }
+      }).catch(function(){ res(lsGet()|| memFallback || []); });
+    }else{
+      res(lsGet() || memFallback || []);
+    }
+  });
+}
+function saveAll(){
+  memFallback = records;
+  lsSet();
+  if(window.storage && window.storage.set){
+    return window.storage.set(KEY, JSON.stringify(records)).catch(function(){});
+  }
+  return Promise.resolve();
+}
+
+/* ---------- helpers ---------- */
+var $ = function(id){ return document.getElementById(id); };
+function money(n){
+  n = Number(n)||0;
+  return n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function parseAmt(v){
+  var n = parseFloat(String(v||"").replace(/[^0-9.]/g,""));
+  return isNaN(n)?0:n;
+}
+function today(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(s){
+  if(!s) return "—";
+  var d = new Date(s+"T00:00:00");
+  if(isNaN(d)) return s;
+  return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+}
+
+var ONES=["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+var TENS=["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+function chunk(n){
+  var s="";
+  if(n>=100){ s+=ONES[Math.floor(n/100)]+" hundred"; n%=100; if(n) s+=" "; }
+  if(n>=20){ s+=TENS[Math.floor(n/10)]; n%=10; if(n) s+="-"+ONES[n]; }
+  else if(n>0){ s+=ONES[n]; }
+  return s;
+}
+function toWords(n){
+  n = Math.floor(Math.abs(n));
+  if(n===0) return "zero";
+  var scales=["","thousand","million","billion"], parts=[], i=0;
+  while(n>0 && i<scales.length){
+    var c = n%1000;
+    if(c) parts.unshift(chunk(c)+(scales[i]?" "+scales[i]:""));
+    n = Math.floor(n/1000); i++;
+  }
+  return parts.join(" ");
+}
+function birrWords(v){
+  v = Number(v)||0;
+  var b = Math.floor(v), c = Math.round((v-b)*100);
+  var s = toWords(b)+" Birr";
+  s += c ? " and "+toWords(c)+" cents" : " only";
+  return s.charAt(0).toUpperCase()+s.slice(1);
+}
+function nextNo(){
+  var d = new Date();
+  var pre = "KK-PAY-"+String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,"0")+"-";
+  var max = 0;
+  records.forEach(function(r){
+    if(r.no && r.no.indexOf(pre)===0){
+      var n = parseInt(r.no.slice(pre.length),10);
+      if(n>max) max=n;
+    }
+  });
+  return pre+String(max+1).padStart(3,"0");
+}
+var toastTimer;
+function toast(msg){
+  var t=$("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove("show");},2200);
+}
+
+/* ---------- form mode ---------- */
+var mode = "project";
+function setMode(m){
+  mode = m;
+  $("btnProject").setAttribute("aria-pressed", m==="project");
+  $("btnOther").setAttribute("aria-pressed", m==="other");
+  $("projectField").style.display = m==="project" ? "" : "none";
+  $("reasonField").style.display  = m==="other" ? "" : "none";
+  renderVoucherFromForm();
+}
+$("btnProject").onclick=function(){ setMode("project"); };
+$("btnOther").onclick=function(){ setMode("other"); };
+
+function chargeTo(){
+  return mode==="project"
+    ? ($("project").value.trim().toUpperCase() || "—")
+    : ($("reason").value || "—");
+}
+function checkPaused(){
+  var v = $("project").value.trim().toUpperCase().replace(/\s+/g," ");
+  var hit = PAUSED.some(function(p){ return p.toUpperCase()===v; });
+  $("pausedFlag").classList.toggle("on", mode==="project" && hit);
+}
+
+/* ---------- voucher render ---------- */
+function renderVoucherFromForm(){
+  current = null;
+  setDecisionEnabled(false);
+  $("decisionHint").textContent = "Save the request first";
+  var amt = parseAmt($("amount").value);
+  $("vNo").textContent = $("voucherNo").textContent;
+  $("vDate").textContent = fmtDate(today());
+  $("vAmount").textContent = money(amt);
+  $("vWords").textContent = birrWords(amt);
+  $("vCharge").textContent = chargeTo();
+  $("vCategory").textContent = $("category").value;
+  $("vPayee").textContent = $("payee").value.trim() || "—";
+  $("vMethod").textContent = $("method").value;
+  $("vNeeded").textContent = fmtDate($("needed").value);
+  $("vRequester").textContent = $("requester").value.trim() || "—";
+  $("vNote").textContent = $("note").value.trim() || "—";
+  $("vApprover").textContent = "";
+  $("vSignLine").textContent = "Approved by · " + (($("approver").value||"").trim() || SIGNER);
+  $("stamp").className = "stamp";
+  checkPaused();
+}
+function renderVoucherFromRecord(r){
+  current = r;
+  $("vNo").textContent = r.no;
+  $("vDate").textContent = fmtDate(r.date);
+  var shown = r.status==="approved" && r.approvedAmount!=null ? r.approvedAmount : r.amount;
+  $("vAmount").textContent = money(shown);
+  $("vWords").textContent = birrWords(shown);
+  $("vCharge").textContent = r.chargeTo;
+  $("vCategory").textContent = r.category;
+  $("vPayee").textContent = r.payee || "—";
+  $("vMethod").textContent = r.method;
+  $("vNeeded").textContent = fmtDate(r.needed);
+  $("vRequester").textContent = r.requester || "—";
+  $("vNote").textContent = r.note || "—";
+  $("vApprover").textContent = r.approver || "";
+  $("vSignLine").textContent = "Approved by · " + (r.approver || SIGNER);
+  var st = $("stamp");
+  if(r.status==="pending"){ st.className="stamp"; }
+  else{
+    st.className = "stamp show "+r.status;
+    $("stampText").textContent = r.status==="approved" ? "Approved" : (r.status==="hold" ? "On hold" : "Rejected");
+    $("stampMeta").textContent = (r.approver||"") + (r.decidedAt? " · "+fmtDate(r.decidedAt) : "");
+  }
+  setDecisionEnabled(true);
+  $("decisionHint").textContent = r.no + " · " + (r.status==="pending" ? "awaiting decision" : r.status);
+  $("approvedAmt").value = r.approvedAmount!=null ? r.approvedAmount : "";
+  $("approver").value = r.approver || $("approver").value;
+}
+function setDecisionEnabled(on){
+  ["approveBtn","holdBtn","rejectBtn"].forEach(function(id){ $(id).disabled = !on; });
+}
+
+["amount","payee","requester","note","project","needed"].forEach(function(id){
+  $(id).addEventListener("input", renderVoucherFromForm);
+});
+["category","method","reason"].forEach(function(id){
+  $(id).addEventListener("change", renderVoucherFromForm);
+});
+
+/* ---------- save ---------- */
+$("saveBtn").onclick = function(){
+  var amt = parseAmt($("amount").value);
+  if(amt<=0){ toast("Enter an amount first"); $("amount").focus(); return; }
+  if(mode==="project" && !$("project").value.trim()){ toast("Enter a project code"); $("project").focus(); return; }
+  if(!$("payee").value.trim()){ toast("Who is being paid?"); $("payee").focus(); return; }
+
+  var rec = {
+    id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
+    no: nextNo(),
+    date: today(),
+    type: mode,
+    chargeTo: chargeTo(),
+    category: $("category").value,
+    payee: $("payee").value.trim(),
+    amount: amt,
+    approvedAmount: null,
+    method: $("method").value,
+    needed: $("needed").value,
+    requester: $("requester").value.trim(),
+    note: $("note").value.trim(),
+    status: "pending",
+    approver: "",
+    decidedAt: ""
+  };
+  records.unshift(rec);
+  saveAll();
+  renderLog();
+  renderVoucherFromRecord(rec);
+  $("voucherNo").textContent = nextNo();
+  toast("Saved "+rec.no);
+};
+
+$("clearBtn").onclick = function(){
+  ["project","payee","amount","requester","note"].forEach(function(id){ $(id).value=""; });
+  $("needed").value = today();
+  $("voucherNo").textContent = nextNo();
+  renderVoucherFromForm();
+};
+
+/* ---------- decisions ---------- */
+function decide(status){
+  if(!current) return;
+  var who = $("approver").value.trim();
+  if(!who){ toast("Enter the approver name"); $("approver").focus(); return; }
+  current.status = status;
+  current.approver = who;
+  current.decidedAt = today();
+  if(status==="approved"){
+    var a = parseAmt($("approvedAmt").value);
+    current.approvedAmount = a>0 ? a : current.amount;
+  }else{
+    current.approvedAmount = null;
+  }
+  saveAll();
+  renderLog();
+  renderVoucherFromRecord(current);
+  toast(current.no+" · "+status);
+}
+$("approveBtn").onclick=function(){ decide("approved"); };
+$("holdBtn").onclick   =function(){ decide("hold"); };
+$("rejectBtn").onclick =function(){ decide("rejected"); };
+$("printBtn").onclick  =function(){ window.print(); };
+
+$("approver").addEventListener("input", function(){
+  var n = ($("approver").value||"").trim() || SIGNER;
+  $("vSignLine").textContent = "Approved by · " + n;
+  if(current && current.status!=="pending") $("vApprover").textContent = current.approver || "";
+});
+
+/* ---------- PDF export ---------- */
+function pdfName(suffix){
+  var no = $("vNo").textContent.replace(/[^A-Za-z0-9-]/g,"");
+  var who = ($("vPayee").textContent||"").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"");
+  return no + (who && who!=="-" ? "-"+who : "") + (suffix||"") + ".pdf";
+}
+
+function textField(pdf, name, x, y, w, h, value){
+  pdf.setDrawColor(150); pdf.setLineWidth(0.25); pdf.rect(x,y,w,h);
+  try{
+    var F = window.jspdf.AcroFormTextField;
+    if(!F) return;
+    var f = new F();
+    f.Rect=[x,y,w,h]; f.fieldName=name; f.value=value||""; f.fontSize=10;
+    pdf.addField(f);
+  }catch(e){}
+}
+function checkBox(pdf, name, x, y, size){
+  pdf.setDrawColor(60); pdf.setLineWidth(0.4); pdf.rect(x,y,size,size);
+  try{
+    var C = window.jspdf.AcroFormCheckBox;
+    if(!C) return;
+    var c = new C();
+    c.Rect=[x,y,size,size]; c.fieldName=name; c.appearanceState="Off";
+    pdf.addField(c);
+  }catch(e){}
+}
+
+function buildPDF(fillable, btn){
+  if(!window.html2canvas || !window.jspdf){
+    toast("PDF library offline — using print");
+    window.print();
+    return;
+  }
+  btn.disabled = true;
+  var label = btn.textContent;
+  btn.textContent = "Rendering…";
+
+  html2canvas($("voucher"), {scale:2, backgroundColor:"#ffffff", useCORS:true, logging:false})
+    .then(function(canvas){
+      var jsPDF = window.jspdf.jsPDF;
+      var pdf = new jsPDF({orientation:"p", unit:"mm", format:"a4"});
+      var pageW=210, pageH=297, m=16;
+      var blockH = fillable ? 86 : 0;
+      var avail = pageH - m*2 - blockH - (fillable?8:0);
+
+      var w = pageW - m*2;
+      var h = canvas.height * w / canvas.width;
+      if(h > avail){ h = avail; w = canvas.width * h / canvas.height; }
+      pdf.addImage(canvas.toDataURL("image/jpeg",0.95), "JPEG", (pageW-w)/2, m, w, h);
+
+      if(fillable){
+        var y = m + h + 8;
+        pdf.setDrawColor(20); pdf.setLineWidth(0.6);
+        pdf.line(m, y, pageW-m, y);
+        y += 6;
+
+        pdf.setFont("helvetica","bold"); pdf.setFontSize(9); pdf.setTextColor(20);
+        pdf.text("DECISION — TO BE COMPLETED BY THE APPROVER", m, y);
+        y += 6;
+        pdf.setFont("helvetica","normal"); pdf.setFontSize(8); pdf.setTextColor(110);
+        pdf.text("Open this file in a PDF reader, tick a box, fill the fields, save, and send it back.", m, y);
+        y += 8;
+
+        var bs = 5.5, cx = m;
+        pdf.setFontSize(10); pdf.setTextColor(20);
+        [["approve","Approve"],["reject","Reject"],["hold","Hold"]].forEach(function(o){
+          checkBox(pdf, o[0], cx, y, bs);
+          pdf.text(o[1], cx + bs + 3, y + bs - 1);
+          cx += 58;
+        });
+        y += bs + 9;
+
+        var colW = (pageW - m*2 - 8)/2;
+        pdf.setFontSize(7.5); pdf.setTextColor(110);
+        pdf.text("APPROVED AMOUNT (ETB)", m, y);
+        pdf.text("DATE", m + colW + 8, y);
+        textField(pdf, "approvedAmount", m, y+1.5, colW, 9, "");
+        textField(pdf, "decisionDate", m + colW + 8, y+1.5, colW, 9, "");
+        y += 17;
+
+        pdf.text("CONDITION OR REMARK", m, y);
+        textField(pdf, "remark", m, y+1.5, pageW - m*2, 11, "");
+        y += 19;
+
+        pdf.text("APPROVER NAME", m, y);
+        pdf.text("SIGNATURE", m + colW + 8, y);
+        textField(pdf, "approverName", m, y+1.5, colW, 11, SIGNER);
+        pdf.setDrawColor(150); pdf.setLineWidth(0.25);
+        pdf.rect(m + colW + 8, y+1.5, colW, 11);
+      }
+
+      pdf.setFont("helvetica","normal"); pdf.setFontSize(7.5); pdf.setTextColor(120);
+      pdf.text("Klever Addis Trading P.L.C. · Addis Ababa · internal payment voucher", m, pageH-10);
+      pdf.text("Generated "+new Date().toLocaleString("en-GB"), pageW-m, pageH-10, {align:"right"});
+
+      pdf.save(pdfName(fillable ? "-APPROVAL" : ""));
+      toast(fillable ? "Approval PDF saved — send it to him" : "PDF saved");
+    })
+    .catch(function(){
+      toast("Render failed — using print");
+      window.print();
+    })
+    .then(function(){
+      btn.disabled = false;
+      btn.textContent = label;
+    });
+}
+
+$("pdfFormBtn").onclick = function(){ buildPDF(true, this); };
+$("pdfBtn").onclick     = function(){ buildPDF(false, this); };
+
+/* ---------- log ---------- */
+function renderLog(){
+  var body = $("logBody");
+  var list = records.filter(function(r){ return filter==="all" || r.status===filter; });
+  body.innerHTML = "";
+  $("logEmpty").style.display = list.length ? "none" : "block";
+
+  list.forEach(function(r){
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td class="id">'+r.no+'</td>'+
+      '<td>'+fmtDate(r.date)+'</td>'+
+      '<td>'+esc(r.chargeTo)+'<div style="color:#5A6572;font-size:11px">'+esc(r.category)+'</div></td>'+
+      '<td>'+esc(r.payee)+'</td>'+
+      '<td class="num">'+money(r.amount)+'</td>'+
+      '<td class="num">'+(r.approvedAmount!=null?money(r.approvedAmount):"—")+'</td>'+
+      '<td><span class="tag '+r.status+'">'+(r.status==="hold"?"on hold":r.status)+'</span></td>';
+    tr.onclick = function(){ renderVoucherFromRecord(r); window.scrollTo({top:0,behavior:"smooth"}); };
+    body.appendChild(tr);
+  });
+
+  var p=0,a=0,o=0;
+  records.forEach(function(r){
+    if(r.status==="pending") p+=r.amount;
+    else if(r.status==="approved") a+=(r.approvedAmount!=null?r.approvedAmount:r.amount);
+    else o+=r.amount;
+  });
+  $("tPending").textContent=money(p);
+  $("tApproved").textContent=money(a);
+  $("tOther").textContent=money(o);
+}
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+
+Array.prototype.forEach.call(document.querySelectorAll(".chip[data-filter]"), function(b){
+  b.onclick = function(){
+    filter = b.dataset.filter;
+    Array.prototype.forEach.call(document.querySelectorAll(".chip[data-filter]"), function(x){
+      x.setAttribute("aria-pressed", x===b);
+    });
+    renderLog();
+  };
+});
+
+$("csvBtn").onclick = function(){
+  if(!records.length){ toast("Nothing to export"); return; }
+  var head = ["Voucher","Date","Type","Charge to","Category","Pay to","Requested ETB","Approved ETB","Pay by","Needed by","Requested by","Status","Approver","Decided","Description"];
+  var rows = records.map(function(r){
+    return [r.no,r.date,r.type,r.chargeTo,r.category,r.payee,r.amount,(r.approvedAmount!=null?r.approvedAmount:""),r.method,r.needed,r.requester,r.status,r.approver,r.decidedAt,r.note];
+  });
+  var csv = [head].concat(rows).map(function(row){
+    return row.map(function(c){ return '"'+String(c==null?"":c).replace(/"/g,'""')+'"'; }).join(",");
+  }).join("\n");
+  var blob = new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "kk-payment-approvals-"+today()+".csv";
+  a.click();
+  toast("CSV exported");
+};
+
+/* ---------- boot ---------- */
+function tick(){
+  $("clock").textContent = new Date().toLocaleString("en-GB",{weekday:"short",day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
+}
+tick(); setInterval(tick,30000);
+
+$("needed").value = today();
+loadAll().then(function(list){
+  records = Array.isArray(list)?list:[];
+  renderLog();
+  $("voucherNo").textContent = nextNo();
+  renderVoucherFromForm();
+});
+
+})();
+</script>
+</body>
+</html>
