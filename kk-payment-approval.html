@@ -236,7 +236,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v5</div>
+    <div class="tool">Cash-Out Approval · Internal · v6</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -417,7 +417,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
           <button class="btn no" id="rejectBtn" disabled>Reject</button>
           <button class="btn" id="signBtn" disabled>Sign on screen</button>
           <button class="btn solid" id="linkBtn" disabled>Approval link to send</button>
-          <button class="btn" id="pdfFormBtn">Approval PDF to send</button>
+          <button class="btn ghost" id="pdfFormBtn">Approval PDF (old way)</button>
           <button class="btn" id="pdfBtn">Final PDF</button>
           <button class="btn ghost" id="printBtn">Print</button>
         </div>
@@ -1044,9 +1044,10 @@ function buildPDF(fillable, btn){
         y += 19;
 
         pdf.text("APPROVER NAME", m, y);
-        pdf.text("SIGNATURE — type your name, or draw it with Fill & Sign", m + colW + 8, y);
+        pdf.text("SIGNATURE — or print, sign with pen, send a photo", m + colW + 8, y);
         textField(pdf, "approverName", m, y+1.5, colW, 11, SIGNER);
-        textField(pdf, "signature", m + colW + 8, y+1.5, colW, 11, "");
+        pdf.setDrawColor(150); pdf.setLineWidth(0.25);
+        pdf.rect(m + colW + 8, y+1.5, colW, 11);
       }
 
       pdf.setFont("helvetica","normal"); pdf.setFontSize(7.5); pdf.setTextColor(120);
