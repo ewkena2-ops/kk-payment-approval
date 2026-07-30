@@ -38,7 +38,9 @@ button,input,select,textarea{font:inherit;color:inherit}
   padding:14px 20px 12px;
   border-bottom:3px solid var(--gold);
 }
-.masthead .wrap{max-width:1180px;margin:0 auto;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.masthead .wrap{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo-mark{display:block;flex:none}
+.v-brand{display:flex;gap:12px;align-items:center}
 .brand{font-weight:700;letter-spacing:.18em;text-transform:uppercase;font-size:15px}
 .brand span{color:var(--gold)}
 .masthead .tool{
@@ -220,6 +222,12 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 
 <header class="masthead no-print">
   <div class="wrap">
+    <svg class="logo-mark" width="28" height="28" viewBox="0 0 48 48" aria-hidden="true">
+      <rect width="48" height="48" fill="#C9930F"/>
+      <rect x="2" y="2" width="44" height="44" fill="#15181C"/>
+      <path d="M15 11v26M15 24l14-13M15 24l14 13" fill="none" stroke="#FFFFFF" stroke-width="3.4"/>
+      <path d="M25 11v26M25 24l14-13M25 24l14 13" fill="none" stroke="#C9930F" stroke-width="3.4"/>
+    </svg>
     <div class="brand">Klever <span>Küche</span></div>
     <div class="tool">Cash-Out Approval · Internal</div>
     <div class="clock" id="clock"></div>
@@ -307,7 +315,11 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
           <select class="in" id="method">
             <option>Cash</option>
             <option>CBE transfer</option>
+            <option>Awash Bank</option>
+            <option>Bank of Abyssinia</option>
+            <option>ZamZam Bank</option>
             <option>Telebirr</option>
+            <option>RTGS</option>
             <option>Cheque</option>
             <option>Bank — other</option>
           </select>
@@ -338,9 +350,17 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
   <section>
     <div class="voucher" id="voucher">
       <div class="v-head">
-        <div>
-          <div class="who">Klever <span>Küche</span></div>
-          <div class="sub">Klever Addis Trading P.L.C. · Addis Ababa</div>
+        <div class="v-brand">
+          <svg class="logo-mark" width="40" height="40" viewBox="0 0 48 48" aria-hidden="true">
+            <rect width="48" height="48" fill="#C9930F"/>
+            <rect x="2" y="2" width="44" height="44" fill="#15181C"/>
+            <path d="M15 11v26M15 24l14-13M15 24l14 13" fill="none" stroke="#FFFFFF" stroke-width="3.4"/>
+            <path d="M25 11v26M25 24l14-13M25 24l14 13" fill="none" stroke="#C9930F" stroke-width="3.4"/>
+          </svg>
+          <div>
+            <div class="who">Klever <span>Küche</span></div>
+            <div class="sub">Klever Addis Trading P.L.C. · Addis Ababa</div>
+          </div>
         </div>
         <div class="v-no">
           Payment voucher
