@@ -230,6 +230,15 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .pj-payhead{padding:12px 16px 4px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
 .pdf-hiding .pdf-hide{display:none!important}
 .pdf-hiding .del{display:none!important}
+
+/* ---------- per-project payment forms ---------- */
+.pforms{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;padding:16px}
+@media(max-width:560px){.pforms{grid-template-columns:1fr;padding:12px}}
+.pform{border:1px solid var(--rule);border-radius:2px;background:#fff;display:flex;flex-direction:column}
+.pform-head{padding:10px 14px;border-bottom:2px solid var(--ink);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pform-head .code{font-family:var(--mono);font-weight:700;letter-spacing:.1em;font-size:14px}
+.pform-head .hint{font-family:var(--mono);font-size:10px;color:var(--steel);letter-spacing:.08em;text-transform:uppercase}
+.pform-body{padding:12px 14px}
 .del{border:0;background:none;color:var(--steel);cursor:pointer;font-size:15px;line-height:1;padding:2px 6px}
 .del:hover{color:var(--red)}
 
@@ -264,7 +273,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v13</div>
+    <div class="tool">Cash-Out Approval · Internal · v14</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -543,6 +552,16 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
       <div><div class="k">Spent</div><div class="v" id="ptSpent">0.00</div></div>
       <div><div class="k">Left</div><div class="v" id="ptLeft">0.00</div></div>
     </div>
+  </section>
+
+  <!-- ============ PER-PROJECT FORMS ============ -->
+  <section class="panel no-print" id="pformsPanel" style="grid-column:1/-1">
+    <div class="panel-head">
+      <h2>New payment — one form per project</h2>
+      <div class="hint">Fill and save inside the project it belongs to</div>
+    </div>
+    <div class="pforms" id="pformsWrap"></div>
+    <div class="empty" id="pformsEmpty">Add a project above and its own payment form appears here.</div>
   </section>
 
   <!-- ============ LOG ============ -->
@@ -1441,6 +1460,7 @@ function renderProjects(){
       have[p.code] = true;
     }
   });
+  renderProjectForms();
 }
 
 function openProject(p){
@@ -1592,6 +1612,94 @@ $("pClearBtn").onclick = function(){
   $("pCode").value=""; $("pContract").value=""; $("pM2").value="";
 };
 
+/* ---------- one payment form per project ---------- */
+function buildProjectForm(p){
+  var card = document.createElement("div");
+  card.className = "pform";
+  card.innerHTML =
+    '<div class="pform-head"><span class="code">'+esc(p.code)+'</span><span class="hint">New payment</span></div>'+
+    '<div class="pform-body">'+
+      '<div class="field" style="margin-top:0"><label class="lbl">Pay to</label><input class="in f-payee" placeholder="Supplier or person" autocomplete="off"></div>'+
+      '<div class="field"><label class="lbl">Spend category — tick all that apply</label><div class="cat-chips f-chips"></div></div>'+
+      '<div class="field f-otherwrap" style="display:none"><label class="lbl">Other — what is it for?</label><input class="in f-other" placeholder="Write what the Other is" autocomplete="off"></div>'+
+      '<div class="field"><label class="lbl">Amount</label><div class="money-wrap"><div class="cur">ETB</div><input class="amount-in f-amt" inputmode="decimal" placeholder="0.00" autocomplete="off"></div></div>'+
+      '<div class="row two field"><div><label class="lbl">Pay by</label><select class="in f-method"></select></div><div><label class="lbl">Needed by</label><input class="in f-needed" type="date"></div></div>'+
+      '<div class="field"><label class="lbl">Requested by</label><input class="in f-req" placeholder="Name" autocomplete="off"></div>'+
+      '<div class="field"><label class="lbl">Description</label><textarea class="in f-note" placeholder="What is being bought and why"></textarea></div>'+
+      '<div class="actions"><button class="btn solid f-save">Save payment</button></div>'+
+    '</div>';
+  var chipsBox = card.querySelector(".f-chips");
+  var otherWrap = card.querySelector(".f-otherwrap");
+  var otherIn = card.querySelector(".f-other");
+  CATEGORIES.forEach(function(c){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = c;
+    b.setAttribute("aria-pressed","false");
+    b.onclick = function(){
+      var on = b.getAttribute("aria-pressed")!=="true";
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      if(c==="Other") otherWrap.style.display = on ? "" : "none";
+    };
+    chipsBox.appendChild(b);
+  });
+  card.querySelector(".f-method").innerHTML = $("method").innerHTML;
+  card.querySelector(".f-needed").value = today();
+  card.querySelector(".f-save").onclick = function(){
+    var amt = parseAmt(card.querySelector(".f-amt").value);
+    var payee = card.querySelector(".f-payee").value.trim();
+    if(amt<=0){ toast(p.code+": enter the amount"); card.querySelector(".f-amt").focus(); return; }
+    if(!payee){ toast(p.code+": who is being paid?"); card.querySelector(".f-payee").focus(); return; }
+    var otherOn = false;
+    Array.prototype.forEach.call(chipsBox.querySelectorAll(".chip[aria-pressed='true']"), function(b){ if(b.textContent==="Other") otherOn = true; });
+    if(otherOn && !otherIn.value.trim()){ toast(p.code+": you ticked Other — write what it is for"); otherIn.focus(); return; }
+    var cats = [];
+    Array.prototype.forEach.call(chipsBox.querySelectorAll(".chip[aria-pressed='true']"), function(b){
+      var c = b.textContent;
+      if(c==="Other"){ var t = otherIn.value.trim(); if(t) c = "Other: "+t; }
+      cats.push(c);
+    });
+    var rec = {
+      id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
+      no: nextNo(),
+      date: today(),
+      type: "project",
+      chargeTo: p.code,
+      category: cats.join(", ") || "—",
+      payee: payee,
+      amount: amt,
+      approvedAmount: null,
+      method: card.querySelector(".f-method").value,
+      needed: card.querySelector(".f-needed").value,
+      requester: card.querySelector(".f-req").value.trim(),
+      note: card.querySelector(".f-note").value.trim(),
+      status: "pending",
+      approver: "",
+      decidedAt: ""
+    };
+    records.unshift(rec);
+    saveAll();
+    renderLog();
+    renderVoucherFromRecord(rec);
+    ["f-payee","f-amt","f-req","f-note"].forEach(function(cl){ card.querySelector("."+cl).value = ""; });
+    otherIn.value = ""; otherWrap.style.display = "none";
+    Array.prototype.forEach.call(chipsBox.querySelectorAll(".chip"), function(b){ b.setAttribute("aria-pressed","false"); });
+    $("voucherNo").textContent = nextNo();
+    toast("Saved "+rec.no+" for "+p.code);
+  };
+  return card;
+}
+
+var pformsSig = null;
+function renderProjectForms(){
+  var codes = projects.map(function(p){ return p.code; }).join("|");
+  if(codes === pformsSig) return;
+  pformsSig = codes;
+  var wrap = $("pformsWrap");
+  wrap.innerHTML = "";
+  $("pformsEmpty").style.display = projects.length ? "none" : "block";
+  projects.forEach(function(p){ wrap.appendChild(buildProjectForm(p)); });
+}
+
 $("quickAddProj").onclick = function(){
   var code = normCode($("project").value);
   if(!code){ toast("Type the project code first"); $("project").focus(); return; }
@@ -1727,6 +1835,7 @@ if(APPROVAL){
   $("formPanel").style.display = "none";
   $("logPanel").style.display = "none";
   $("projPanel").style.display = "none";
+  $("pformsPanel").style.display = "none";
   $("decisionPanel").style.display = "none";
   $("remotePanel").style.display = "";
   renderVoucherFromRecord({
