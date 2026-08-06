@@ -272,7 +272,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v19</div>
+    <div class="tool">Cash-Out Approval · Internal · v20</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -431,6 +431,11 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
       </div>
 
       <div class="stamp" id="stamp"><span id="stampText">Approved</span><span class="meta" id="stampMeta"></span></div>
+    </div>
+
+    <div class="panel" id="apProjPanel" style="display:none;margin-top:16px">
+      <div class="panel-head"><h2 id="apProjTitle">Project</h2><div class="hint">contract &amp; net</div></div>
+      <div class="pj-stats" id="apProjStats"></div>
     </div>
 
     <div class="panel no-print" id="decisionPanel" style="margin-top:16px">
@@ -1133,6 +1138,12 @@ $("linkBtn").onclick = function(){
     category: current.category, payee: current.payee, amount: current.amount,
     method: current.method, needed: current.needed, requester: current.requester, note: current.note
   };
+  var pcode = normCode(current.chargeTo), pj = null;
+  projects.forEach(function(p){ if(p.code===pcode) pj = p; });
+  if(pj){
+    var pc = projCalc(pj);
+    d.proj = {code:pj.code, contract:Number(pj.contract)||0, net:pc.net, spent:pc.spent, left:pc.left};
+  }
   var url = location.href.split("#")[0] + "#a=" + b64e(d);
   if(navigator.share){
     navigator.share({title:"Payment approval "+d.no, text:"Please approve and sign "+d.no+":", url:url}).catch(function(){});
@@ -1956,6 +1967,16 @@ if(OWNER){
   ["formPanel","logPanel","projPanel","xformsPanel","voucherCol"].forEach(function(id){ $(id).style.display = "none"; });
   renderOwner(OWNER);
 }else if(APPROVAL){
+  if(APPROVAL.proj){
+    var apc = function(k,v){ return '<div><div class="k">'+k+'</div><div class="v">'+v+'</div></div>'; };
+    $("apProjTitle").textContent = APPROVAL.proj.code+" — project money";
+    $("apProjStats").innerHTML =
+      apc("Contract excl. VAT", money(APPROVAL.proj.contract)) +
+      apc("Net", money(APPROVAL.proj.net)) +
+      apc("Spent (this one included)", money(APPROVAL.proj.spent)) +
+      apc("Left of net", money(APPROVAL.proj.left));
+    $("apProjPanel").style.display = "";
+  }
   $("formPanel").style.display = "none";
   $("logPanel").style.display = "none";
   $("projPanel").style.display = "none";
