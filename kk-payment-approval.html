@@ -211,6 +211,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .rates input{width:74px;padding:4px 6px;border:1px solid var(--rule);border-radius:2px;background:#FBFBFC;font-family:var(--mono);font-size:11px;text-align:right;outline:none}
 .rates input:focus{border-color:var(--ink);background:#fff}
 .scroll-x{overflow-x:auto}
+.cat-chips{display:flex;flex-wrap:wrap;gap:6px}
 .del{border:0;background:none;color:var(--steel);cursor:pointer;font-size:15px;line-height:1;padding:2px 6px}
 .del:hover{color:var(--red)}
 
@@ -245,7 +246,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v7</div>
+    <div class="tool">Cash-Out Approval · Internal · v8</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -293,28 +294,14 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
         </select>
       </div>
 
-      <div class="row two field">
-        <div>
-          <label class="lbl" for="category">Spend category</label>
-          <select class="in" id="category">
-            <option>MDF / panel</option>
-            <option>Edge band</option>
-            <option>Hardware &amp; accessories</option>
-            <option>Hinges / slides</option>
-            <option>Handles</option>
-            <option>Countertop</option>
-            <option>Sink &amp; tap</option>
-            <option>Paint / finishing</option>
-            <option>Glue &amp; fixings</option>
-            <option>Labour / subcontract</option>
-            <option>Transport</option>
-            <option>Other</option>
-          </select>
-        </div>
-        <div>
-          <label class="lbl" for="payee">Pay to</label>
-          <input class="in" id="payee" placeholder="Supplier or person" autocomplete="off">
-        </div>
+      <div class="field">
+        <label class="lbl" for="payee">Pay to</label>
+        <input class="in" id="payee" placeholder="Supplier or person" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label class="lbl">Spend category — tick all that apply</label>
+        <div class="cat-chips" id="categoryChips"></div>
       </div>
 
       <div class="field">
@@ -692,6 +679,36 @@ function toast(msg){
   clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove("show");},2200);
 }
 
+/* ---------- spend categories (multiple allowed) ---------- */
+var CATEGORIES = ["MDF / panel","Edge band","Hardware & accessories","Hinges / slides","Handles","Countertop","Sink & tap","Paint / finishing","Glue & fixings","Labour / subcontract","Transport","Other"];
+(function(){
+  var box = $("categoryChips");
+  CATEGORIES.forEach(function(c){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip";
+    b.textContent = c;
+    b.setAttribute("aria-pressed","false");
+    b.onclick = function(){
+      b.setAttribute("aria-pressed", b.getAttribute("aria-pressed")==="true" ? "false" : "true");
+      renderVoucherFromForm();
+    };
+    box.appendChild(b);
+  });
+})();
+function selectedCategories(){
+  var out = [];
+  Array.prototype.forEach.call(document.querySelectorAll("#categoryChips .chip[aria-pressed='true']"), function(b){
+    out.push(b.textContent);
+  });
+  return out.join(", ");
+}
+function clearCategories(){
+  Array.prototype.forEach.call(document.querySelectorAll("#categoryChips .chip"), function(b){
+    b.setAttribute("aria-pressed","false");
+  });
+}
+
 /* ---------- form mode ---------- */
 var mode = "project";
 function setMode(m){
@@ -727,7 +744,7 @@ function renderVoucherFromForm(){
   $("vAmount").textContent = money(amt);
   $("vWords").textContent = birrWords(amt);
   $("vCharge").textContent = chargeTo();
-  $("vCategory").textContent = $("category").value;
+  $("vCategory").textContent = selectedCategories() || "—";
   $("vPayee").textContent = $("payee").value.trim() || "—";
   $("vMethod").innerHTML = methodHTML($("method").value);
   updateMethodLogo();
@@ -778,7 +795,7 @@ function setDecisionEnabled(on){
 ["amount","payee","requester","note","project","needed"].forEach(function(id){
   $(id).addEventListener("input", renderVoucherFromForm);
 });
-["category","method","reason"].forEach(function(id){
+["method","reason"].forEach(function(id){
   $(id).addEventListener("change", renderVoucherFromForm);
 });
 
@@ -795,7 +812,7 @@ $("saveBtn").onclick = function(){
     date: today(),
     type: mode,
     chargeTo: chargeTo(),
-    category: $("category").value,
+    category: selectedCategories() || "—",
     payee: $("payee").value.trim(),
     amount: amt,
     approvedAmount: null,
@@ -817,6 +834,7 @@ $("saveBtn").onclick = function(){
 
 $("clearBtn").onclick = function(){
   ["project","payee","amount","requester","note"].forEach(function(id){ $(id).value=""; });
+  clearCategories();
   $("needed").value = today();
   $("voucherNo").textContent = nextNo();
   renderVoucherFromForm();
