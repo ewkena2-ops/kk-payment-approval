@@ -205,6 +205,15 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .totals .v{font-family:var(--mono);font-size:16px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
 .empty{padding:26px 16px;text-align:center;color:var(--steel);font-size:13px}
 
+/* ---------- projects ---------- */
+.rates{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.rates label{display:flex;gap:5px;align-items:center;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--steel)}
+.rates input{width:74px;padding:4px 6px;border:1px solid var(--rule);border-radius:2px;background:#FBFBFC;font-family:var(--mono);font-size:11px;text-align:right;outline:none}
+.rates input:focus{border-color:var(--ink);background:#fff}
+.scroll-x{overflow-x:auto}
+.del{border:0;background:none;color:var(--steel);cursor:pointer;font-size:15px;line-height:1;padding:2px 6px}
+.del:hover{color:var(--red)}
+
 .sig-overlay{position:fixed;inset:0;background:rgba(21,24,28,.55);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
 .sig-overlay.on{display:flex}
 .sig-box{background:#fff;border:1px solid var(--ink);border-radius:2px;padding:16px;width:min(760px,100%)}
@@ -236,7 +245,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v6</div>
+    <div class="tool">Cash-Out Approval · Internal · v7</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -453,6 +462,67 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
           <button class="btn solid" id="rSend">Send decision back</button>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ PROJECTS ============ -->
+  <section class="panel no-print" id="projPanel" style="grid-column:1/-1">
+    <div class="panel-head">
+      <h2>Projects · contract &amp; net</h2>
+      <div class="tools">
+        <div class="rates">
+          <label for="rateInstall">Install /m²<input id="rateInstall" inputmode="decimal"></label>
+          <label for="rateComm">Commission %<input id="rateComm" inputmode="decimal"></label>
+          <label for="rateOver">Overhead /m²<input id="rateOver" inputmode="decimal"></label>
+        </div>
+        <button class="chip" id="projCsvBtn">Export CSV</button>
+      </div>
+    </div>
+    <div class="panel-body" style="border-bottom:1px solid var(--rule-soft)">
+      <div class="row three">
+        <div>
+          <label class="lbl" for="pCode">Project code</label>
+          <input class="in" id="pCode" placeholder="KK142 / RBT 3300" autocomplete="off">
+        </div>
+        <div>
+          <label class="lbl" for="pContract">Contract total before VAT (ETB)</label>
+          <input class="in" id="pContract" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        </div>
+        <div>
+          <label class="lbl" for="pM2">Size (m²)</label>
+          <input class="in" id="pM2" inputmode="decimal" placeholder="0" autocomplete="off">
+        </div>
+      </div>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn solid" id="pSaveBtn">Save project</button>
+        <button class="btn ghost" id="pClearBtn">Clear</button>
+      </div>
+    </div>
+    <div class="scroll-x">
+      <table>
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th style="text-align:right">Contract excl. VAT</th>
+            <th style="text-align:right">m²</th>
+            <th style="text-align:right" id="thInstall">Install</th>
+            <th style="text-align:right" id="thComm">Commission</th>
+            <th style="text-align:right" id="thOver">Overhead</th>
+            <th style="text-align:right">Net</th>
+            <th style="text-align:right">Spent (approved)</th>
+            <th style="text-align:right">Left</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="projBody"></tbody>
+      </table>
+      <div class="empty" id="projEmpty">No projects yet. Add one above — one line per project.</div>
+    </div>
+    <div class="totals" style="grid-template-columns:repeat(4,1fr)">
+      <div><div class="k">Contract</div><div class="v" id="ptContract">0.00</div></div>
+      <div><div class="k">Net</div><div class="v" id="ptNet">0.00</div></div>
+      <div><div class="k">Spent</div><div class="v" id="ptSpent">0.00</div></div>
+      <div><div class="k">Left</div><div class="v" id="ptLeft">0.00</div></div>
     </div>
   </section>
 
@@ -1100,6 +1170,7 @@ function renderLog(){
   $("tPending").textContent=money(p);
   $("tApproved").textContent=money(a);
   $("tOther").textContent=money(o);
+  renderProjects();
 }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
 
@@ -1130,6 +1201,163 @@ $("csvBtn").onclick = function(){
   toast("CSV exported");
 };
 
+/* ---------- projects (contract → net) ---------- */
+var PKEY = "kk:projects:v1";
+var RKEY = "kk:projrates:v1";
+var projects = [];
+var rates = {install:780, commission:4, overhead:2000};
+
+function kvLoad(key){
+  function ls(){ try{ var v = window.localStorage.getItem(key); return v?JSON.parse(v):null; }catch(e){ return null; } }
+  return new Promise(function(res){
+    if(window.storage && window.storage.get){
+      window.storage.get(key).then(function(r){
+        try{ res(r && r.value ? JSON.parse(r.value) : ls()); }catch(e){ res(ls()); }
+      }).catch(function(){ res(ls()); });
+    }else{
+      res(ls());
+    }
+  });
+}
+function kvSave(key, val){
+  try{ window.localStorage.setItem(key, JSON.stringify(val)); }catch(e){}
+  if(window.storage && window.storage.set){
+    window.storage.set(key, JSON.stringify(val)).catch(function(){});
+  }
+}
+
+function normCode(s){ return String(s||"").trim().toUpperCase().replace(/\s+/g," "); }
+
+function projCalc(p){
+  var m2 = Number(p.m2)||0, contract = Number(p.contract)||0;
+  var install = m2 * rates.install;
+  var comm = contract * rates.commission / 100;
+  var over = m2 * rates.overhead;
+  var net = contract - install - comm - over;
+  var spent = 0;
+  records.forEach(function(r){
+    if(r.status==="approved" && normCode(r.chargeTo)===p.code){
+      spent += (r.approvedAmount!=null ? r.approvedAmount : r.amount);
+    }
+  });
+  return {install:install, comm:comm, over:over, net:net, spent:spent, left:net-spent};
+}
+
+function syncRateInputs(){
+  $("rateInstall").value = rates.install;
+  $("rateComm").value = rates.commission;
+  $("rateOver").value = rates.overhead;
+}
+
+function renderProjects(){
+  $("thInstall").textContent = "Install · "+rates.install.toLocaleString("en-US")+"/m²";
+  $("thComm").textContent = "Commission · "+rates.commission+"%";
+  $("thOver").textContent = "Overhead · "+rates.overhead.toLocaleString("en-US")+"/m²";
+
+  var body = $("projBody");
+  body.innerHTML = "";
+  $("projEmpty").style.display = projects.length ? "none" : "block";
+
+  var tc=0, tn=0, ts=0, tl=0;
+  projects.forEach(function(p){
+    var c = projCalc(p);
+    tc += Number(p.contract)||0; tn += c.net; ts += c.spent; tl += c.left;
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td class="id">'+esc(p.code)+'</td>'+
+      '<td class="num">'+money(p.contract)+'</td>'+
+      '<td class="num">'+(Number(p.m2)||0)+'</td>'+
+      '<td class="num">'+money(c.install)+'</td>'+
+      '<td class="num">'+money(c.comm)+'</td>'+
+      '<td class="num">'+money(c.over)+'</td>'+
+      '<td class="num"'+(c.net<0?' style="color:var(--red)"':'')+'><strong>'+money(c.net)+'</strong></td>'+
+      '<td class="num">'+money(c.spent)+'</td>'+
+      '<td class="num"'+(c.left<0?' style="color:var(--red)"':'')+'>'+money(c.left)+'</td>'+
+      '<td><button class="del" title="Delete project" aria-label="Delete '+esc(p.code)+'">×</button></td>';
+    tr.onclick = function(){
+      $("pCode").value = p.code;
+      $("pContract").value = p.contract;
+      $("pM2").value = p.m2;
+      toast("Editing "+p.code+" — change the numbers and save");
+    };
+    tr.querySelector(".del").onclick = function(e){
+      e.stopPropagation();
+      if(!window.confirm("Delete "+p.code+" from the project list?")) return;
+      projects = projects.filter(function(x){ return x!==p; });
+      kvSave(PKEY, projects);
+      renderProjects();
+      toast(p.code+" removed");
+    };
+    body.appendChild(tr);
+  });
+
+  $("ptContract").textContent = money(tc);
+  $("ptNet").textContent = money(tn);
+  $("ptSpent").textContent = money(ts);
+  $("ptLeft").textContent = money(tl);
+
+  var dl = $("projects"), have = {};
+  Array.prototype.forEach.call(dl.options, function(o){ have[normCode(o.value)] = true; });
+  projects.forEach(function(p){
+    if(!have[p.code]){
+      var o = document.createElement("option");
+      o.value = p.code;
+      dl.appendChild(o);
+      have[p.code] = true;
+    }
+  });
+}
+
+$("pSaveBtn").onclick = function(){
+  var code = normCode($("pCode").value);
+  if(!code){ toast("Enter a project code"); $("pCode").focus(); return; }
+  var contract = parseAmt($("pContract").value);
+  if(contract<=0){ toast("Enter the contract total before VAT"); $("pContract").focus(); return; }
+  var m2 = parseAmt($("pM2").value);
+  var existing = null;
+  projects.forEach(function(p){ if(p.code===code) existing = p; });
+  if(existing){
+    existing.contract = contract; existing.m2 = m2;
+    toast(code+" updated");
+  }else{
+    projects.unshift({code:code, contract:contract, m2:m2, added:today()});
+    toast(code+" added");
+  }
+  kvSave(PKEY, projects);
+  renderProjects();
+  $("pCode").value=""; $("pContract").value=""; $("pM2").value="";
+};
+$("pClearBtn").onclick = function(){
+  $("pCode").value=""; $("pContract").value=""; $("pM2").value="";
+};
+
+[["rateInstall","install"],["rateComm","commission"],["rateOver","overhead"]].forEach(function(pair){
+  $(pair[0]).addEventListener("change", function(){
+    rates[pair[1]] = parseAmt($(pair[0]).value);
+    kvSave(RKEY, rates);
+    syncRateInputs();
+    renderProjects();
+  });
+});
+
+$("projCsvBtn").onclick = function(){
+  if(!projects.length){ toast("No projects to export"); return; }
+  var head = ["Project","Contract excl VAT (ETB)","m2","Installation @"+rates.install+"/m2","Commission @"+rates.commission+"%","Overhead @"+rates.overhead+"/m2","Net (ETB)","Spent approved (ETB)","Left (ETB)"];
+  var rows = projects.map(function(p){
+    var c = projCalc(p);
+    return [p.code, p.contract, p.m2, c.install, c.comm, c.over, c.net, c.spent, c.left];
+  });
+  var csv = [head].concat(rows).map(function(row){
+    return row.map(function(x){ return '"'+String(x==null?"":x).replace(/"/g,'""')+'"'; }).join(",");
+  }).join("\n");
+  var blob = new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "kk-projects-"+today()+".csv";
+  a.click();
+  toast("Projects CSV exported");
+};
+
 /* ---------- boot ---------- */
 function tick(){
   $("clock").textContent = new Date().toLocaleString("en-GB",{weekday:"short",day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
@@ -1139,6 +1367,7 @@ tick(); setInterval(tick,30000);
 if(APPROVAL){
   $("formPanel").style.display = "none";
   $("logPanel").style.display = "none";
+  $("projPanel").style.display = "none";
   $("decisionPanel").style.display = "none";
   $("remotePanel").style.display = "";
   renderVoucherFromRecord({
@@ -1151,8 +1380,18 @@ if(APPROVAL){
   rPadCtl.resize();
 }else{
   $("needed").value = today();
-  loadAll().then(function(list){
-    records = Array.isArray(list)?list:[];
+  Promise.all([loadAll(), kvLoad(PKEY), kvLoad(RKEY)]).then(function(res){
+    records = Array.isArray(res[0])?res[0]:[];
+    projects = Array.isArray(res[1])?res[1]:[];
+    var rr = res[2];
+    if(rr && typeof rr==="object"){
+      rates = {
+        install: Number(rr.install)||0,
+        commission: Number(rr.commission)||0,
+        overhead: Number(rr.overhead)||0
+      };
+    }
+    syncRateInputs();
     renderLog();
     $("voucherNo").textContent = nextNo();
     renderVoucherFromForm();
