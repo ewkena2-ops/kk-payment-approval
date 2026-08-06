@@ -272,7 +272,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v18</div>
+    <div class="tool">Cash-Out Approval · Internal · v19</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -392,7 +392,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
   </section>
 
   <!-- ============ VOUCHER + DECISION ============ -->
-  <section>
+  <section id="voucherCol">
     <div class="voucher" id="voucher">
       <div class="v-head">
         <div>
@@ -502,6 +502,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
           <label for="rateOver">Overhead /m²<input id="rateOver" inputmode="decimal"></label>
         </div>
         <button class="chip" id="pAddMoreBtn">+ Add another form</button>
+        <button class="chip" id="projLinkBtn">Link for owner</button>
         <button class="chip" id="projPdfBtn">Projects PDF</button>
         <button class="chip" id="projCsvBtn">Export CSV</button>
       </div>
@@ -552,6 +553,38 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
       <div><div class="k">Net</div><div class="v" id="ptNet">0.00</div></div>
       <div><div class="k">Spent</div><div class="v" id="ptSpent">0.00</div></div>
       <div><div class="k">Left</div><div class="v" id="ptLeft">0.00</div></div>
+    </div>
+  </section>
+
+  <!-- ============ OWNER VIEW (read-only, opened from link) ============ -->
+  <section class="panel" id="ownerPanel" style="grid-column:1/-1;display:none">
+    <div class="panel-head">
+      <h2>Projects · contract &amp; net</h2>
+      <div class="hint" id="ownerDate"></div>
+    </div>
+    <div class="scroll-x">
+      <table>
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th style="text-align:right">Contract excl. VAT</th>
+            <th style="text-align:right">m²</th>
+            <th style="text-align:right" id="othInstall">Install</th>
+            <th style="text-align:right" id="othComm">Commission</th>
+            <th style="text-align:right" id="othOver">Overhead</th>
+            <th style="text-align:right">Net</th>
+            <th style="text-align:right">Spent</th>
+            <th style="text-align:right">Left</th>
+          </tr>
+        </thead>
+        <tbody id="ownerBody"></tbody>
+      </table>
+    </div>
+    <div class="totals" style="grid-template-columns:repeat(4,1fr)">
+      <div><div class="k">Contract</div><div class="v" id="otContract">0.00</div></div>
+      <div><div class="k">Net</div><div class="v" id="otNet">0.00</div></div>
+      <div><div class="k">Spent</div><div class="v" id="otSpent">0.00</div></div>
+      <div><div class="k">Left</div><div class="v" id="otLeft">0.00</div></div>
     </div>
   </section>
 
@@ -1085,10 +1118,12 @@ function b64d(s){
   while(s.length % 4) s += "=";
   return JSON.parse(decodeURIComponent(escape(atob(s))));
 }
-var APPROVAL = null;
+var APPROVAL = null, OWNER = null;
 (function(){
   var m = location.hash.match(/^#a=(.+)/);
   if(m){ try{ APPROVAL = b64d(m[1]); }catch(e){ APPROVAL = null; } }
+  var o = location.hash.match(/^#p=(.+)/);
+  if(o){ try{ OWNER = b64d(o[1]); }catch(e){ OWNER = null; } }
 })();
 
 $("linkBtn").onclick = function(){
@@ -1846,6 +1881,53 @@ $("projPdfBtn").onclick = function(){
   toast("One PDF saved — each project on its own page");
 };
 
+$("projLinkBtn").onclick = function(){
+  if(!projects.length){ toast("No projects yet"); return; }
+  var list = projects.map(function(p){
+    var c = projCalc(p);
+    var pending = 0;
+    records.forEach(function(r){ if(r.status==="pending" && normCode(r.chargeTo)===p.code) pending += r.amount; });
+    return {code:p.code, contract:Number(p.contract)||0, m2:Number(p.m2)||0, install:c.install, comm:c.comm, over:c.over, net:c.net, spent:c.spent, pending:pending, left:c.left};
+  });
+  var url = location.href.split("#")[0] + "#p=" + b64e({r:rates, at:today(), list:list});
+  if(navigator.share){
+    navigator.share({title:"Projects — contract & net", text:"Projects overview:", url:url}).catch(function(){});
+  }else if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){ toast("Link copied — paste it in WhatsApp"); });
+  }else{
+    window.prompt("Copy this link and send it:", url);
+  }
+};
+
+function renderOwner(d){
+  $("ownerPanel").style.display = "";
+  $("ownerDate").textContent = d.at ? "As of "+fmtDate(d.at) : "";
+  var r = d.r || {};
+  $("othInstall").textContent = "Install · "+(Number(r.install)||0).toLocaleString("en-US")+"/m²";
+  $("othComm").textContent = "Commission · "+(Number(r.commission)||0)+"%";
+  $("othOver").textContent = "Overhead · "+(Number(r.overhead)||0).toLocaleString("en-US")+"/m²";
+  var tc=0, tn=0, ts=0, tl=0, body = $("ownerBody");
+  (d.list||[]).forEach(function(p){
+    tc += Number(p.contract)||0; tn += Number(p.net)||0; ts += Number(p.spent)||0; tl += Number(p.left)||0;
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td class="id">'+esc(p.code)+'</td>'+
+      '<td class="num">'+money(p.contract)+'</td>'+
+      '<td class="num">'+(Number(p.m2)||0)+'</td>'+
+      '<td class="num">'+money(p.install)+'</td>'+
+      '<td class="num">'+money(p.comm)+'</td>'+
+      '<td class="num">'+money(p.over)+'</td>'+
+      '<td class="num"'+(p.net<0?' style="color:var(--red)"':'')+'><strong>'+money(p.net)+'</strong></td>'+
+      '<td class="num">'+money(p.spent)+'</td>'+
+      '<td class="num"'+(p.left<0?' style="color:var(--red)"':'')+'>'+money(p.left)+'</td>';
+    body.appendChild(tr);
+  });
+  $("otContract").textContent = money(tc);
+  $("otNet").textContent = money(tn);
+  $("otSpent").textContent = money(ts);
+  $("otLeft").textContent = money(tl);
+}
+
 $("projCsvBtn").onclick = function(){
   if(!projects.length){ toast("No projects to export"); return; }
   var head = ["Project","Contract excl VAT (ETB)","m2","Installation @"+rates.install+"/m2","Commission @"+rates.commission+"%","Overhead @"+rates.overhead+"/m2","Net (ETB)","Spent (ETB)","Left (ETB)"];
@@ -1870,7 +1952,10 @@ function tick(){
 }
 tick(); setInterval(tick,30000);
 
-if(APPROVAL){
+if(OWNER){
+  ["formPanel","logPanel","projPanel","xformsPanel","voucherCol"].forEach(function(id){ $(id).style.display = "none"; });
+  renderOwner(OWNER);
+}else if(APPROVAL){
   $("formPanel").style.display = "none";
   $("logPanel").style.display = "none";
   $("projPanel").style.display = "none";
