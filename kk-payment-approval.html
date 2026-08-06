@@ -232,7 +232,9 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .pdf-hiding .del{display:none!important}
 
 /* ---------- batch approval ---------- */
-.bitem{border:1px solid var(--rule);border-radius:2px;margin:14px 16px;padding:12px 14px}
+.bitem{border:1px solid var(--ink);border-radius:2px;margin:14px 16px;padding:14px 16px;position:relative}
+.bitem::before{content:"";position:absolute;inset:4px;border:1px solid var(--rule-soft);pointer-events:none}
+.bitem .words{font-size:11.5px;font-style:italic;color:#33393F;margin:0 0 8px;border-bottom:1px dotted var(--rule);padding-bottom:5px}
 .bitem .bi-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--steel)}
 .bitem .bi-head strong{color:var(--ink);font-size:12px}
 .bitem .bi-amt{font-family:var(--mono);font-size:22px;font-weight:700;margin:6px 0 2px;font-variant-numeric:tabular-nums}
@@ -283,7 +285,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v22</div>
+    <div class="tool">Cash-Out Approval · Internal · v23</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -576,6 +578,17 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
   <section class="panel" id="batchPanel" style="grid-column:1/-1;display:none">
     <div class="panel-head"><h2>Payments to approve</h2><div class="hint" id="batchHint"></div></div>
     <div id="batchCapture" style="background:#fff">
+      <div class="v-head" style="border-bottom:1px solid var(--rule-soft)">
+        <div>
+          <img class="v-logo" src="image.png" alt="Klever Küche">
+          <div class="sub">Klever Addis Trading P.L.C. · Addis Ababa</div>
+        </div>
+        <div class="v-no">
+          Payment approvals
+          <strong id="bCount">—</strong>
+          <span id="bAt">—</span>
+        </div>
+      </div>
       <div id="batchList"></div>
       <div class="v-sign" style="border-top:1px solid var(--rule)">
         <div><div style="height:34px" id="bSigShow"></div><div class="line" id="bSignLine">Approved by · Amare Feleke</div></div>
@@ -1236,6 +1249,8 @@ function renderBatch(d){
   $("batchPanel").style.display = "";
   var items = d.items||[];
   $("batchHint").textContent = items.length+" payment"+(items.length>1?"s":"")+" · tick each one · sign once · send back";
+  $("bCount").textContent = items.length+" payment"+(items.length>1?"s":"");
+  $("bAt").textContent = fmtDate(d.at || today());
   var list = $("batchList");
   items.forEach(function(it, i){
     bDecisions.push(null);
@@ -1244,6 +1259,7 @@ function renderBatch(d){
     div.innerHTML =
       '<div class="bi-head"><strong>'+esc(it.no)+'</strong><span>'+esc(it.chargeTo)+' · '+fmtDate(it.date)+'</span></div>'+
       '<div class="bi-amt">'+money(it.amount)+'<em>ETB</em></div>'+
+      '<div class="words">'+birrWords(it.amount)+'</div>'+
       '<div class="bi-sub">Pay to '+esc(it.payee||"—")+' · '+esc(it.category||"—")+(it.note?' · '+esc(it.note):'')+'</div>'+
       (it.proj ? '<div class="bi-proj">'+esc(it.proj.code)+' — net '+money(it.proj.net)+' · spent (incl. this) '+money(it.proj.spent)+' · left '+money(it.proj.left)+'</div>' : '')+
       '<div class="seg" style="grid-template-columns:1fr 1fr 1fr">'+
