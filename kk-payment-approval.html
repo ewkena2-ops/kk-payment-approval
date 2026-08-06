@@ -264,7 +264,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v12</div>
+    <div class="tool">Cash-Out Approval · Internal · v13</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -286,7 +286,10 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 
       <div class="field" id="projectField">
         <label class="lbl" for="project">Project code</label>
-        <input class="in" id="project" list="projects" placeholder="KK148 / RBT 3269" autocomplete="off">
+        <div style="display:flex;gap:8px">
+          <input class="in" id="project" list="projects" placeholder="KK148 / RBT 3269" autocomplete="off" style="flex:1;min-width:0">
+          <button type="button" class="btn" id="quickAddProj" title="Add this code to the Projects list">+ Project</button>
+        </div>
         <datalist id="projects">
           <option value="KK121"><option value="KK136"><option value="KK140">
           <option value="KK148"><option value="KK149"><option value="KK117">
@@ -1587,6 +1590,18 @@ $("pSaveBtn").onclick = function(){
 };
 $("pClearBtn").onclick = function(){
   $("pCode").value=""; $("pContract").value=""; $("pM2").value="";
+};
+
+$("quickAddProj").onclick = function(){
+  var code = normCode($("project").value);
+  if(!code){ toast("Type the project code first"); $("project").focus(); return; }
+  var exists = false;
+  projects.forEach(function(p){ if(p.code===code) exists = true; });
+  if(exists){ toast(code+" is already in Projects"); return; }
+  projects.unshift({code:code, contract:0, m2:0, added:today()});
+  kvSave(PKEY, projects);
+  renderProjects();
+  toast(code+" added to Projects — set contract & m² there");
 };
 
 [["rateInstall","install"],["rateComm","commission"],["rateOver","overhead"]].forEach(function(pair){
