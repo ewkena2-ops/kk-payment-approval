@@ -272,7 +272,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v17</div>
+    <div class="tool">Cash-Out Approval · Internal · v18</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -1393,14 +1393,14 @@ function projCalc(p){
   var net = contract - install - comm - over;
   var manual = 0;
   (p.spend||[]).forEach(function(s){ manual += Number(s.amt)||0; });
-  var approved = 0;
+  var vouchers = 0;
   records.forEach(function(r){
-    if(r.status==="approved" && normCode(r.chargeTo)===p.code){
-      approved += (r.approvedAmount!=null ? r.approvedAmount : r.amount);
+    if((r.status==="pending" || r.status==="approved") && normCode(r.chargeTo)===p.code){
+      vouchers += (r.status==="approved" && r.approvedAmount!=null) ? r.approvedAmount : r.amount;
     }
   });
-  var spent = manual + approved;
-  return {install:install, comm:comm, over:over, net:net, manual:manual, approved:approved, spent:spent, left:net-spent};
+  var spent = manual + vouchers;
+  return {install:install, comm:comm, over:over, net:net, manual:manual, vouchers:vouchers, spent:spent, left:net-spent};
 }
 
 function syncRateInputs(){
@@ -1479,7 +1479,7 @@ function openProject(p){
     cell("Overhead · "+rates.overhead.toLocaleString("en-US")+"/m²", money(c.over)) +
     cell("Net", money(c.net), "big") +
     cell("Spent", money(c.spent)) +
-    cell("Pending", money(pending)) +
+    cell("Of it waiting approval", money(pending)) +
     cell("Left of net", money(c.left), "big");
 
   $("psAmt").value = ""; $("psNote").value = "";
@@ -1818,11 +1818,12 @@ function pdfProjectPage(pdf, p){
   var slist = p.spend||[];
   slist.forEach(function(s){ spendLine(fmtDate(s.date), s.note||"—", s.amt); });
   records.forEach(function(r){
-    if(r.status==="approved" && normCode(r.chargeTo)===p.code){
-      spendLine(fmtDate(r.date), "Voucher "+r.no+" · "+(r.payee||""), (r.approvedAmount!=null?r.approvedAmount:r.amount));
+    if((r.status==="pending" || r.status==="approved") && normCode(r.chargeTo)===p.code){
+      var amt = (r.status==="approved" && r.approvedAmount!=null) ? r.approvedAmount : r.amount;
+      spendLine(fmtDate(r.date), "Voucher "+r.no+" · "+(r.payee||"")+(r.status==="pending"?" (waiting approval)":""), amt);
     }
   });
-  if(!slist.length && c.approved<=0){
+  if(!slist.length && c.vouchers<=0){
     pdf.setFont("helvetica","italic"); pdf.setFontSize(9); pdf.setTextColor(130);
     pdf.text("No spend written yet.", mm, y);
     y += 6;
