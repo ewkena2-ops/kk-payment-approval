@@ -262,7 +262,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v10</div>
+    <div class="tool">Cash-Out Approval · Internal · v11</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -522,7 +522,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
             <th style="text-align:right" id="thComm">Commission</th>
             <th style="text-align:right" id="thOver">Overhead</th>
             <th style="text-align:right">Net</th>
-            <th style="text-align:right">Spent (approved)</th>
+            <th style="text-align:right">Spent</th>
             <th style="text-align:right">Left</th>
             <th></th>
           </tr>
@@ -585,7 +585,34 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
       </div>
     </div>
     <div class="pj-stats" id="pjStats"></div>
-    <div class="pj-payhead">Payments on this project</div>
+
+    <div class="pj-payhead">Spend on this project — write it here</div>
+    <div style="padding:10px 16px 14px;border-bottom:1px solid var(--rule-soft)">
+      <div class="row three">
+        <div>
+          <label class="lbl" for="psAmt">Amount (ETB)</label>
+          <input class="in" id="psAmt" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        </div>
+        <div>
+          <label class="lbl" for="psNote">What for</label>
+          <input class="in" id="psNote" placeholder="e.g. MDF boards, labour" autocomplete="off">
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn solid" id="psAdd" style="width:100%">Add spend</button>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-x">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>What for</th><th style="text-align:right">Amount</th><th></th></tr>
+        </thead>
+        <tbody id="psBody"></tbody>
+      </table>
+      <div class="empty" id="psEmpty">No spend written yet. Add the first one above.</div>
+    </div>
+
+    <div class="pj-payhead">Payment vouchers on this project</div>
     <div class="scroll-x">
       <table>
         <thead>
@@ -1337,13 +1364,16 @@ function projCalc(p){
   var comm = contract * rates.commission / 100;
   var over = m2 * rates.overhead;
   var net = contract - install - comm - over;
-  var spent = 0;
+  var manual = 0;
+  (p.spend||[]).forEach(function(s){ manual += Number(s.amt)||0; });
+  var approved = 0;
   records.forEach(function(r){
     if(r.status==="approved" && normCode(r.chargeTo)===p.code){
-      spent += (r.approvedAmount!=null ? r.approvedAmount : r.amount);
+      approved += (r.approvedAmount!=null ? r.approvedAmount : r.amount);
     }
   });
-  return {install:install, comm:comm, over:over, net:net, spent:spent, left:net-spent};
+  var spent = manual + approved;
+  return {install:install, comm:comm, over:over, net:net, manual:manual, approved:approved, spent:spent, left:net-spent};
 }
 
 function syncRateInputs(){
@@ -1421,9 +1451,43 @@ function openProject(p){
     cell("Commission · "+rates.commission+"%", money(c.comm)) +
     cell("Overhead · "+rates.overhead.toLocaleString("en-US")+"/m²", money(c.over)) +
     cell("Net", money(c.net), "big") +
-    cell("Spent (approved)", money(c.spent)) +
+    cell("Spent", money(c.spent)) +
     cell("Pending", money(pending)) +
     cell("Left of net", money(c.left), "big");
+
+  $("psAmt").value = ""; $("psNote").value = "";
+  $("psAdd").onclick = function(){
+    var a = parseAmt($("psAmt").value);
+    if(a<=0){ toast("Enter the amount"); $("psAmt").focus(); return; }
+    if(!p.spend) p.spend = [];
+    p.spend.unshift({amt:a, note:$("psNote").value.trim(), date:today()});
+    kvSave(PKEY, projects);
+    renderProjects();
+    openProject(p);
+    toast("Spend added to "+p.code);
+  };
+  var sb = $("psBody"), slist = p.spend||[];
+  sb.innerHTML = "";
+  $("psEmpty").style.display = slist.length ? "none" : "block";
+  slist.forEach(function(s, i){
+    var str = document.createElement("tr");
+    str.innerHTML =
+      '<td>'+fmtDate(s.date)+'</td>'+
+      '<td>'+esc(s.note||"—")+'</td>'+
+      '<td class="num">'+money(s.amt)+'</td>'+
+      '<td><button class="del" title="Remove" aria-label="Remove spend">×</button></td>';
+    str.querySelector(".del").onclick = function(e){
+      e.stopPropagation();
+      if(!window.confirm("Remove this spend ("+money(s.amt)+")?")) return;
+      p.spend.splice(i,1);
+      kvSave(PKEY, projects);
+      renderProjects();
+      openProject(p);
+      toast("Spend removed");
+    };
+    sb.appendChild(str);
+  });
+
   var body = $("pjBody");
   var list = records.filter(function(r){ return normCode(r.chargeTo)===p.code; });
   body.innerHTML = "";
@@ -1493,7 +1557,7 @@ $("pClearBtn").onclick = function(){
 
 $("projCsvBtn").onclick = function(){
   if(!projects.length){ toast("No projects to export"); return; }
-  var head = ["Project","Contract excl VAT (ETB)","m2","Installation @"+rates.install+"/m2","Commission @"+rates.commission+"%","Overhead @"+rates.overhead+"/m2","Net (ETB)","Spent approved (ETB)","Left (ETB)"];
+  var head = ["Project","Contract excl VAT (ETB)","m2","Installation @"+rates.install+"/m2","Commission @"+rates.commission+"%","Overhead @"+rates.overhead+"/m2","Net (ETB)","Spent (ETB)","Left (ETB)"];
   var rows = projects.map(function(p){
     var c = projCalc(p);
     return [p.code, p.contract, p.m2, c.install, c.comm, c.over, c.net, c.spent, c.left];
