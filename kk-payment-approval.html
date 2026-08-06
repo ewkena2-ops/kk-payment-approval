@@ -228,6 +228,8 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .pj-stats .v.big{font-size:19px}
 @media(max-width:560px){.pj-stats{grid-template-columns:repeat(2,1fr)}.pj-stats>div:nth-child(4n){border-right:1px solid var(--rule-soft)}.pj-stats>div:nth-child(2n){border-right:0}}
 .pj-payhead{padding:12px 16px 4px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+.pdf-hiding .pdf-hide{display:none!important}
+.pdf-hiding .del{display:none!important}
 .del{border:0;background:none;color:var(--steel);cursor:pointer;font-size:15px;line-height:1;padding:2px 6px}
 .del:hover{color:var(--red)}
 
@@ -262,7 +264,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v11</div>
+    <div class="tool">Cash-Out Approval · Internal · v12</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -488,6 +490,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
           <label for="rateComm">Commission %<input id="rateComm" inputmode="decimal"></label>
           <label for="rateOver">Overhead /m²<input id="rateOver" inputmode="decimal"></label>
         </div>
+        <button class="chip" id="projPdfBtn">Projects PDF</button>
         <button class="chip" id="projCsvBtn">Export CSV</button>
       </div>
     </div>
@@ -573,13 +576,14 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 </main>
 
 <div class="proj-overlay no-print" id="projOverlay">
-  <div class="proj-box">
+  <div class="proj-box" id="projBox">
     <div class="pj-head">
       <div>
         <div class="pj-title" id="pjCode">—</div>
         <div class="pj-sub" id="pjSub">—</div>
       </div>
-      <div class="actions" style="margin:0">
+      <div class="actions pdf-hide" style="margin:0">
+        <button class="btn solid" id="pjPdf">Project PDF</button>
         <button class="btn" id="pjEdit">Edit contract / m²</button>
         <button class="btn ghost" id="pjClose">Close</button>
       </div>
@@ -587,7 +591,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
     <div class="pj-stats" id="pjStats"></div>
 
     <div class="pj-payhead">Spend on this project — write it here</div>
-    <div style="padding:10px 16px 14px;border-bottom:1px solid var(--rule-soft)">
+    <div class="pdf-hide" style="padding:10px 16px 14px;border-bottom:1px solid var(--rule-soft)">
       <div class="row three">
         <div>
           <label class="lbl" for="psAmt">Amount (ETB)</label>
@@ -1517,6 +1521,45 @@ function openProject(p){
     $("pCode").scrollIntoView({behavior:"smooth",block:"center"});
     toast("Editing "+p.code+" — change the numbers and press Save project");
   };
+  $("pjPdf").onclick = function(){
+    if(!window.html2canvas || !window.jspdf){ toast("PDF library offline — check internet"); return; }
+    var box = $("projBox"), btn = $("pjPdf");
+    btn.disabled = true;
+    var lbl = btn.textContent;
+    btn.textContent = "Rendering…";
+    box.classList.add("pdf-hiding");
+    html2canvas(box, {scale:2, backgroundColor:"#ffffff", useCORS:true, logging:false})
+      .then(function(canvas){
+        var jsPDF = window.jspdf.jsPDF;
+        var pdf = new jsPDF({orientation:"p", unit:"mm", format:"a4"});
+        var pageW=210, pageH=297, mm=12;
+        var w = pageW - mm*2;
+        var avail = pageH - mm*2 - 6;
+        var slicePx = Math.floor(canvas.width * (avail / w));
+        var y = 0, first = true;
+        while(y < canvas.height){
+          var sc = document.createElement("canvas");
+          sc.width = canvas.width;
+          sc.height = Math.min(slicePx, canvas.height - y);
+          sc.getContext("2d").drawImage(canvas, 0, y, canvas.width, sc.height, 0, 0, canvas.width, sc.height);
+          if(!first) pdf.addPage();
+          pdf.addImage(sc.toDataURL("image/jpeg",0.95), "JPEG", mm, mm, w, sc.height * w / canvas.width);
+          pdf.setFont("helvetica","normal"); pdf.setFontSize(7.5); pdf.setTextColor(120);
+          pdf.text("Klever Addis Trading P.L.C. · project summary · "+p.code, mm, pageH-6);
+          pdf.text("Generated "+new Date().toLocaleString("en-GB"), pageW-mm, pageH-6, {align:"right"});
+          first = false;
+          y += sc.height;
+        }
+        pdf.save(p.code.replace(/[^A-Za-z0-9]+/g,"-")+"-project.pdf");
+        toast("Project PDF saved");
+      })
+      .catch(function(){ toast("Could not render the PDF"); })
+      .then(function(){
+        box.classList.remove("pdf-hiding");
+        btn.disabled = false;
+        btn.textContent = lbl;
+      });
+  };
   $("projOverlay").classList.add("on");
 }
 function closeProject(){ $("projOverlay").classList.remove("on"); }
@@ -1554,6 +1597,92 @@ $("pClearBtn").onclick = function(){
     renderProjects();
   });
 });
+
+function pdfProjectPage(pdf, p){
+  var c = projCalc(p);
+  var pageW=210, pageH=297, mm=16;
+  var y = 20;
+  pdf.setFont("helvetica","normal"); pdf.setFontSize(8); pdf.setTextColor(120);
+  pdf.text("KLEVER ADDIS TRADING P.L.C. · PROJECT SUMMARY", mm, y);
+  y += 9;
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(22); pdf.setTextColor(20);
+  pdf.text(p.code, mm, y);
+  pdf.setFont("helvetica","normal"); pdf.setFontSize(9); pdf.setTextColor(120);
+  pdf.text((Number(p.m2)||0)+" m²"+(p.added ? " · added "+fmtDate(p.added) : ""), pageW-mm, y, {align:"right"});
+  y += 4;
+  pdf.setDrawColor(20); pdf.setLineWidth(0.7);
+  pdf.line(mm, y, pageW-mm, y);
+  y += 9;
+
+  function row(label, val, opts){
+    opts = opts || {};
+    pdf.setFont("helvetica", opts.bold ? "bold" : "normal");
+    pdf.setFontSize(opts.big ? 12.5 : 10);
+    pdf.setTextColor(20);
+    pdf.text(label, mm, y);
+    pdf.text(val, pageW-mm, y, {align:"right"});
+    y += opts.big ? 8.5 : 7;
+  }
+  var m2n = Number(p.m2)||0;
+  row("Contract total before VAT (ETB)", money(p.contract));
+  row("Installation · "+rates.install.toLocaleString("en-US")+"/m² × "+m2n+" m²", "- "+money(c.install));
+  row("Commission · "+rates.commission+"%", "- "+money(c.comm));
+  row("Overhead · "+rates.overhead.toLocaleString("en-US")+"/m² × "+m2n+" m²", "- "+money(c.over));
+  pdf.setDrawColor(150); pdf.setLineWidth(0.3); pdf.line(mm, y-4, pageW-mm, y-4);
+  row("NET (ETB)", money(c.net), {bold:true, big:true});
+  row("Spent", "- "+money(c.spent));
+  pdf.setDrawColor(150); pdf.setLineWidth(0.3); pdf.line(mm, y-4, pageW-mm, y-4);
+  row("LEFT OF NET (ETB)", money(c.left), {bold:true, big:true});
+  y += 5;
+
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(9); pdf.setTextColor(20);
+  pdf.text("SPEND", mm, y);
+  y += 2;
+  pdf.setDrawColor(20); pdf.setLineWidth(0.5); pdf.line(mm, y, pageW-mm, y);
+  y += 6;
+
+  function spendLine(dateStr, label, amt){
+    if(y > pageH-22){
+      pdf.addPage(); y = 20;
+      pdf.setFont("helvetica","normal"); pdf.setFontSize(8.5); pdf.setTextColor(120);
+      pdf.text(p.code+" — spend (continued)", mm, y);
+      y += 8;
+    }
+    pdf.setFont("helvetica","normal"); pdf.setFontSize(9.5); pdf.setTextColor(20);
+    pdf.text(dateStr, mm, y);
+    pdf.text(String(label||"—").slice(0,64), mm+28, y);
+    pdf.text(money(amt), pageW-mm, y, {align:"right"});
+    y += 6;
+  }
+  var slist = p.spend||[];
+  slist.forEach(function(s){ spendLine(fmtDate(s.date), s.note||"—", s.amt); });
+  records.forEach(function(r){
+    if(r.status==="approved" && normCode(r.chargeTo)===p.code){
+      spendLine(fmtDate(r.date), "Voucher "+r.no+" · "+(r.payee||""), (r.approvedAmount!=null?r.approvedAmount:r.amount));
+    }
+  });
+  if(!slist.length && c.approved<=0){
+    pdf.setFont("helvetica","italic"); pdf.setFontSize(9); pdf.setTextColor(130);
+    pdf.text("No spend written yet.", mm, y);
+    y += 6;
+  }
+  pdf.setFont("helvetica","normal"); pdf.setFontSize(7.5); pdf.setTextColor(130);
+  pdf.text("Generated "+new Date().toLocaleDateString("en-GB"), mm, pageH-10);
+  pdf.text(p.code, pageW-mm, pageH-10, {align:"right"});
+}
+
+$("projPdfBtn").onclick = function(){
+  if(!projects.length){ toast("No projects yet"); return; }
+  if(!window.jspdf){ toast("PDF library offline — check internet"); return; }
+  var jsPDF = window.jspdf.jsPDF;
+  var pdf = new jsPDF({orientation:"p", unit:"mm", format:"a4"});
+  projects.forEach(function(p, idx){
+    if(idx) pdf.addPage();
+    pdfProjectPage(pdf, p);
+  });
+  pdf.save("kk-projects-"+today()+".pdf");
+  toast("One PDF saved — each project on its own page");
+};
 
 $("projCsvBtn").onclick = function(){
   if(!projects.length){ toast("No projects to export"); return; }
