@@ -231,6 +231,17 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .pdf-hiding .pdf-hide{display:none!important}
 .pdf-hiding .del{display:none!important}
 
+/* ---------- batch approval ---------- */
+.bitem{border:1px solid var(--rule);border-radius:2px;margin:14px 16px;padding:12px 14px}
+.bitem .bi-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--steel)}
+.bitem .bi-head strong{color:var(--ink);font-size:12px}
+.bitem .bi-amt{font-family:var(--mono);font-size:22px;font-weight:700;margin:6px 0 2px;font-variant-numeric:tabular-nums}
+.bitem .bi-amt em{font-style:normal;font-size:.5em;color:var(--steel);letter-spacing:.08em;margin-left:6px}
+.bitem .bi-sub{font-size:12px;color:#33393F;margin-bottom:10px}
+.bitem .bi-proj{font-family:var(--mono);font-size:10.5px;color:var(--steel);margin-bottom:10px}
+.bitem .seg{max-width:420px}
+.bitem .bi-appr{margin-top:8px;max-width:420px}
+
 /* ---------- extra request forms ---------- */
 .xforms{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;padding:16px}
 @media(max-width:560px){.xforms{grid-template-columns:1fr;padding:12px}}
@@ -272,7 +283,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v20</div>
+    <div class="tool">Cash-Out Approval · Internal · v21</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -561,6 +572,36 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
     </div>
   </section>
 
+  <!-- ============ BATCH APPROVAL (opened from link) ============ -->
+  <section class="panel" id="batchPanel" style="grid-column:1/-1;display:none">
+    <div class="panel-head"><h2>Payments to approve</h2><div class="hint" id="batchHint"></div></div>
+    <div id="batchCapture" style="background:#fff">
+      <div id="batchList"></div>
+      <div class="v-sign" style="border-top:1px solid var(--rule)">
+        <div><div style="height:34px" id="bSigShow"></div><div class="line" id="bSignLine">Approved by · Amare Feleke</div></div>
+        <div><div style="height:34px;font-size:13px;font-family:var(--mono)" id="bDateShow"></div><div class="line">Date</div></div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="row two">
+        <div>
+          <label class="lbl" for="bName">Your name</label>
+          <input class="in" id="bName" value="Amare Feleke" autocomplete="off">
+        </div>
+      </div>
+      <div class="field">
+        <label class="lbl">Sign here with your finger — one signature for all</label>
+        <canvas id="bPad" class="padbox"></canvas>
+        <div class="actions" style="margin-top:8px">
+          <button class="btn ghost" id="bClear">Clear signature</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn solid" id="bSend">Send all decisions back</button>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ OWNER VIEW (read-only, opened from link) ============ -->
   <section class="panel" id="ownerPanel" style="grid-column:1/-1;display:none">
     <div class="panel-head">
@@ -613,6 +654,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
         <button class="chip" data-filter="approved" aria-pressed="false">Approved</button>
         <button class="chip" data-filter="hold" aria-pressed="false">On hold</button>
         <button class="chip" data-filter="rejected" aria-pressed="false">Rejected</button>
+        <button class="chip" id="batchLinkBtn">Approval link — all pending</button>
         <button class="chip" id="csvBtn">Export CSV</button>
       </div>
     </div>
@@ -1123,12 +1165,14 @@ function b64d(s){
   while(s.length % 4) s += "=";
   return JSON.parse(decodeURIComponent(escape(atob(s))));
 }
-var APPROVAL = null, OWNER = null;
+var APPROVAL = null, OWNER = null, BATCH = null;
 (function(){
   var m = location.hash.match(/^#a=(.+)/);
   if(m){ try{ APPROVAL = b64d(m[1]); }catch(e){ APPROVAL = null; } }
   var o = location.hash.match(/^#p=(.+)/);
   if(o){ try{ OWNER = b64d(o[1]); }catch(e){ OWNER = null; } }
+  var b = location.hash.match(/^#b=(.+)/);
+  if(b){ try{ BATCH = b64d(b[1]); }catch(e){ BATCH = null; } }
 })();
 
 $("linkBtn").onclick = function(){
@@ -1156,6 +1200,108 @@ $("linkBtn").onclick = function(){
 
 var rDecision = null;
 var rPadCtl = makePad($("rPad"));
+var bPadCtl = makePad($("bPad"));
+
+/* ---------- batch approval (many payments, one link) ---------- */
+function shareUrl(url, title){
+  if(navigator.share){
+    navigator.share({title:title, url:url}).catch(function(){});
+  }else if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){ toast("Link copied — paste it in WhatsApp"); });
+  }else{
+    window.prompt("Copy this link and send it:", url);
+  }
+}
+
+$("batchLinkBtn").onclick = function(){
+  var pend = records.filter(function(r){ return r.status==="pending"; });
+  if(!pend.length){ toast("No pending payments to send"); return; }
+  var items = pend.map(function(r){
+    var d = {no:r.no, date:r.date, chargeTo:r.chargeTo, category:r.category, payee:r.payee,
+             amount:r.amount, method:r.method, needed:r.needed, requester:r.requester, note:r.note};
+    var pcode = normCode(r.chargeTo), pj = null;
+    projects.forEach(function(p){ if(p.code===pcode) pj = p; });
+    if(pj){
+      var c = projCalc(pj);
+      d.proj = {code:pj.code, net:c.net, spent:c.spent, left:c.left};
+    }
+    return d;
+  });
+  var url = location.href.split("#")[0] + "#b=" + b64e({at:today(), items:items});
+  shareUrl(url, "Payments to approve ("+items.length+")");
+};
+
+var bDecisions = [];
+function renderBatch(d){
+  $("batchPanel").style.display = "";
+  var items = d.items||[];
+  $("batchHint").textContent = items.length+" payment"+(items.length>1?"s":"")+" · tick each one · sign once · send back";
+  var list = $("batchList");
+  items.forEach(function(it, i){
+    bDecisions.push(null);
+    var div = document.createElement("div");
+    div.className = "bitem";
+    div.innerHTML =
+      '<div class="bi-head"><strong>'+esc(it.no)+'</strong><span>'+esc(it.chargeTo)+' · '+fmtDate(it.date)+'</span></div>'+
+      '<div class="bi-amt">'+money(it.amount)+'<em>ETB</em></div>'+
+      '<div class="bi-sub">Pay to '+esc(it.payee||"—")+' · '+esc(it.category||"—")+(it.note?' · '+esc(it.note):'')+'</div>'+
+      (it.proj ? '<div class="bi-proj">'+esc(it.proj.code)+' — net '+money(it.proj.net)+' · spent (incl. this) '+money(it.proj.spent)+' · left '+money(it.proj.left)+'</div>' : '')+
+      '<div class="seg" style="grid-template-columns:1fr 1fr 1fr">'+
+        '<button type="button" data-d="approved" aria-pressed="false">Approve</button>'+
+        '<button type="button" data-d="hold" aria-pressed="false">Hold</button>'+
+        '<button type="button" data-d="rejected" aria-pressed="false">Reject</button>'+
+      '</div>'+
+      '<input class="in bi-appr" inputmode="decimal" placeholder="Approved amount — leave blank for full" style="display:none">';
+    var appr = div.querySelector(".bi-appr");
+    Array.prototype.forEach.call(div.querySelectorAll(".seg button"), function(b){
+      b.onclick = function(){
+        bDecisions[i] = b.dataset.d;
+        Array.prototype.forEach.call(div.querySelectorAll(".seg button"), function(x){ x.setAttribute("aria-pressed", x===b); });
+        appr.style.display = b.dataset.d==="approved" ? "" : "none";
+      };
+    });
+    list.appendChild(div);
+  });
+  $("bDateShow").textContent = fmtDate(today());
+  bPadCtl.resize();
+}
+$("bName").addEventListener("input", function(){
+  $("bSignLine").textContent = "Approved by · " + (($("bName").value||"").trim() || SIGNER);
+});
+$("bClear").onclick = function(){ bPadCtl.clear(); $("bSigShow").innerHTML = ""; };
+$("bSend").onclick = function(){
+  var items = (BATCH && BATCH.items) || [];
+  for(var i=0;i<items.length;i++){
+    if(!bDecisions[i]){ toast("Decide "+items[i].no+" — tick Approve, Hold or Reject"); return; }
+  }
+  var name = ($("bName").value||"").trim();
+  if(!name){ toast("Enter your name"); $("bName").focus(); return; }
+  $("bSignLine").textContent = "Approved by · " + name;
+  if(bPadCtl.drawn){ $("bSigShow").innerHTML = '<img src="'+bPadCtl.dataURL()+'" style="height:34px">'; }
+  var btn = $("bSend");
+  btn.disabled = true; btn.textContent = "Preparing…";
+  function done(){ btn.disabled = false; btn.textContent = "Send all decisions back"; }
+  if(!window.html2canvas){ done(); toast("Could not render — take a screenshot instead"); return; }
+  html2canvas($("batchCapture"), {scale:2, backgroundColor:"#ffffff", useCORS:true, logging:false})
+    .then(function(canvas){
+      var fname = "KK-PAY-DECISIONS-"+today()+".png";
+      function dl(){
+        var a = document.createElement("a");
+        a.href = canvas.toDataURL("image/png"); a.download = fname; a.click();
+        toast("Image saved — send it back on WhatsApp");
+      }
+      canvas.toBlob(function(blob){
+        var file = (blob && window.File) ? new File([blob], fname, {type:"image/png"}) : null;
+        if(file && navigator.canShare && navigator.canShare({files:[file]})){
+          navigator.share({files:[file], title:fname}).catch(function(){ dl(); });
+        }else{
+          dl();
+        }
+        done();
+      }, "image/png");
+    })
+    .catch(function(){ done(); toast("Could not render — take a screenshot instead"); });
+};
 function previewRemote(){
   if(!APPROVAL) return;
   var st = $("stamp");
@@ -1963,7 +2109,10 @@ function tick(){
 }
 tick(); setInterval(tick,30000);
 
-if(OWNER){
+if(BATCH){
+  ["formPanel","logPanel","projPanel","xformsPanel","voucherCol"].forEach(function(id){ $(id).style.display = "none"; });
+  renderBatch(BATCH);
+}else if(OWNER){
   ["formPanel","logPanel","projPanel","xformsPanel","voucherCol"].forEach(function(id){ $(id).style.display = "none"; });
   renderOwner(OWNER);
 }else if(APPROVAL){
