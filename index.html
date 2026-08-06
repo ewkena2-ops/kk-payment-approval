@@ -314,19 +314,8 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
       </div>
 
       <div class="field" id="reasonField" style="display:none">
-        <label class="lbl" for="reason">What is it for</label>
-        <select class="in" id="reason">
-          <option>Salary / wages</option>
-          <option>Rent</option>
-          <option>Utilities</option>
-          <option>Transport / delivery</option>
-          <option>Machine repair</option>
-          <option>Tools &amp; consumables</option>
-          <option>Fuel</option>
-          <option>Tax / government fee</option>
-          <option>Marketing</option>
-          <option>Other</option>
-        </select>
+        <label class="lbl">What is it for — tick all that apply</label>
+        <div class="cat-chips" id="reasonChips"></div>
       </div>
 
       <div class="field" id="otherReasonField" style="display:none">
@@ -595,6 +584,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
       </table>
       <div class="empty" id="rcEmpty">No running cost yet. Press “Running cost” on a new request — salary, rent, fuel, tax…</div>
     </div>
+    <div class="hint" id="rcNote" style="display:none;padding:9px 16px;border-top:1px solid var(--rule-soft);line-height:1.5"></div>
     <div class="totals" style="grid-template-columns:repeat(4,1fr)">
       <div><div class="k">Requests</div><div class="v" id="rtCount">0</div></div>
       <div><div class="k">Waiting</div><div class="v" id="rtPending">0.00</div></div>
@@ -900,11 +890,13 @@ function toast(msg){
   clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove("show");},2200);
 }
 
-/* ---------- spend categories (multiple allowed) ---------- */
+/* ---------- tick-all-that-apply chips (spend categories, and what a running cost is for) ---------- */
 var CATEGORIES = ["MDF / panel","Edge band","Hardware & accessories","Hinges / slides","Handles","Countertop","Sink & tap","Paint / finishing","Glue & fixings","Labour / subcontract","Transport","Other"];
-(function(){
-  var box = $("categoryChips");
-  CATEGORIES.forEach(function(c){
+var RC_REASONS = ["Salary / wages","Rent","Utilities","Transport / delivery","Machine repair",
+                  "Tools & consumables","Fuel","Tax / government fee","Marketing","Other"];
+function buildChips(boxId, list, afterClick){
+  var box = $(boxId);
+  list.forEach(function(c){
     var b = document.createElement("button");
     b.type = "button";
     b.className = "chip";
@@ -912,44 +904,47 @@ var CATEGORIES = ["MDF / panel","Edge band","Hardware & accessories","Hinges / s
     b.setAttribute("aria-pressed","false");
     b.onclick = function(){
       b.setAttribute("aria-pressed", b.getAttribute("aria-pressed")==="true" ? "false" : "true");
-      updateOtherCat();
+      afterClick();
       renderVoucherFromForm();
     };
     box.appendChild(b);
   });
-})();
-function otherCatOn(){
-  var on = false;
-  Array.prototype.forEach.call(document.querySelectorAll("#categoryChips .chip[aria-pressed='true']"), function(b){
-    if(b.textContent==="Other") on = true;
-  });
-  return on;
 }
-function updateOtherCat(){
-  $("otherCatField").style.display = otherCatOn() ? "" : "none";
+function chipsPicked(boxId){
+  return Array.prototype.slice.call(document.querySelectorAll("#"+boxId+" .chip[aria-pressed='true']"));
 }
-function updateOtherReason(){
-  $("otherReasonField").style.display = (mode==="other" && $("reason").value==="Other") ? "" : "none";
+function chipOtherOn(boxId){
+  return chipsPicked(boxId).some(function(b){ return b.textContent==="Other"; });
 }
-function selectedCategories(){
-  var out = [];
-  Array.prototype.forEach.call(document.querySelectorAll("#categoryChips .chip[aria-pressed='true']"), function(b){
+/* the ticked chips as one line — "Other" carries the words he typed */
+function chipText(boxId, otherId){
+  return chipsPicked(boxId).map(function(b){
     var c = b.textContent;
     if(c==="Other"){
-      var t = $("otherCat").value.trim();
+      var t = $(otherId).value.trim();
       if(t) c = "Other: "+t;
     }
-    out.push(c);
-  });
-  return out.join(", ");
+    return c;
+  }).join(", ");
 }
-function clearCategories(){
-  Array.prototype.forEach.call(document.querySelectorAll("#categoryChips .chip"), function(b){
+function clearChips(boxId, otherId){
+  Array.prototype.forEach.call(document.querySelectorAll("#"+boxId+" .chip"), function(b){
     b.setAttribute("aria-pressed","false");
   });
-  $("otherCat").value = "";
-  updateOtherCat();
+  $(otherId).value = "";
 }
+function updateOtherCat(){
+  $("otherCatField").style.display = chipOtherOn("categoryChips") ? "" : "none";
+}
+function updateOtherReason(){
+  $("otherReasonField").style.display = (mode==="other" && chipOtherOn("reasonChips")) ? "" : "none";
+}
+buildChips("categoryChips", CATEGORIES, updateOtherCat);
+buildChips("reasonChips", RC_REASONS, updateOtherReason);
+function selectedCategories(){ return chipText("categoryChips","otherCat"); }
+function selectedReasons(){ return chipText("reasonChips","otherReason"); }
+function clearCategories(){ clearChips("categoryChips","otherCat"); updateOtherCat(); }
+function clearReasons(){ clearChips("reasonChips","otherReason"); updateOtherReason(); }
 
 /* ---------- form mode ---------- */
 var mode = "project";
@@ -967,12 +962,7 @@ $("btnOther").onclick=function(){ setMode("other"); };
 
 function chargeTo(){
   if(mode==="project") return ($("project").value.trim().toUpperCase() || "—");
-  var r = $("reason").value || "—";
-  if(r==="Other"){
-    var t = $("otherReason").value.trim();
-    if(t) r = "Other: "+t;
-  }
-  return r;
+  return selectedReasons() || "—";
 }
 function checkPaused(){
   var v = $("project").value.trim().toUpperCase().replace(/\s+/g," ");
@@ -1042,10 +1032,7 @@ function setDecisionEnabled(on){
 ["amount","payee","requester","note","project","needed","otherCat","otherReason"].forEach(function(id){
   $(id).addEventListener("input", renderVoucherFromForm);
 });
-["method","reason"].forEach(function(id){
-  $(id).addEventListener("change", renderVoucherFromForm);
-});
-$("reason").addEventListener("change", updateOtherReason);
+$("method").addEventListener("change", renderVoucherFromForm);
 
 /* ---------- save ---------- */
 $("saveBtn").onclick = function(){
@@ -1053,8 +1040,9 @@ $("saveBtn").onclick = function(){
   if(amt<=0){ toast("Enter an amount first"); $("amount").focus(); return; }
   if(mode==="project" && !$("project").value.trim()){ toast("Enter a project code"); $("project").focus(); return; }
   if(!$("payee").value.trim()){ toast("Who is being paid?"); $("payee").focus(); return; }
-  if(otherCatOn() && !$("otherCat").value.trim()){ toast("You ticked Other — write what it is for"); $("otherCat").focus(); return; }
-  if(mode==="other" && $("reason").value==="Other" && !$("otherReason").value.trim()){ toast("You chose Other — write what it is for"); $("otherReason").focus(); return; }
+  if(chipOtherOn("categoryChips") && !$("otherCat").value.trim()){ toast("You ticked Other — write what it is for"); $("otherCat").focus(); return; }
+  if(mode==="other" && !chipsPicked("reasonChips").length){ toast("Tick what it is for"); return; }
+  if(mode==="other" && chipOtherOn("reasonChips") && !$("otherReason").value.trim()){ toast("You ticked Other — write what it is for"); $("otherReason").focus(); return; }
 
   var rec = {
     id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
@@ -1083,9 +1071,9 @@ $("saveBtn").onclick = function(){
 };
 
 $("clearBtn").onclick = function(){
-  ["project","payee","amount","requester","note","otherReason"].forEach(function(id){ $(id).value=""; });
+  ["project","payee","amount","requester","note"].forEach(function(id){ $(id).value=""; });
   clearCategories();
-  updateOtherReason();
+  clearReasons();
   $("needed").value = today();
   $("voucherNo").textContent = nextNo();
   renderVoucherFromForm();
@@ -1808,16 +1796,15 @@ $("csvBtn").onclick = function(){
 };
 
 /* ---------- running cost (money that is not on a project) ---------- */
-var RC_REASONS = ["Salary / wages","Rent","Utilities","Transport / delivery","Machine repair",
-                  "Tools & consumables","Fuel","Tax / government fee","Marketing","Other"];
 var rcScope = "month";
 function isRC(r){
   if(r.type) return r.type === "other";
   /* old records saved before the two buttons existed */
   if(projFor(r.chargeTo)) return false;
-  var c = normCode(r.chargeTo);
-  if(c.indexOf("OTHER:") === 0) return true;
-  return RC_REASONS.some(function(x){ return normCode(x) === c; });
+  return String(r.chargeTo||"").split(",").some(function(part){
+    var c = normCode(part);
+    return c.indexOf("OTHER:") === 0 || RC_REASONS.some(function(x){ return normCode(x) === c; });
+  });
 }
 function paidAmount(r){
   return (r.status==="approved" && r.approvedAmount!=null) ? (Number(r.approvedAmount)||0) : (Number(r.amount)||0);
@@ -1826,40 +1813,56 @@ function thisMonth(){ return today().slice(0,7); }
 function monthName(){
   return new Date(thisMonth()+"-01T00:00:00").toLocaleDateString("en-GB",{month:"long",year:"numeric"});
 }
-/* what the approver sees on a running-cost link: this reason, and all running cost, this month */
+/* one request can be for several things — "Fuel, Transport / delivery" splits back into its ticks.
+   Free text after "Other:" may itself hold a comma, so anything unknown sticks to the part before it. */
+function rcSplit(chargeTo){
+  var out = [];
+  String(chargeTo||"").split(",").map(function(s){ return s.trim(); }).filter(Boolean).forEach(function(p){
+    var known = normCode(p).indexOf("OTHER:") === 0 ||
+                RC_REASONS.some(function(x){ return normCode(x) === normCode(p); });
+    if(known || !out.length) out.push(p);
+    else out[out.length-1] += ", " + p;
+  });
+  return out.length ? out : ["—"];
+}
+/* what the approver sees on a running-cost link: the same kind of cost, and all running cost, this month */
 function rcCalc(reason){
-  var m = thisMonth(), key = normCode(reason), o = {rp:0, ra:0, ap:0, aa:0};
+  var m = thisMonth(), keys = rcSplit(reason).map(normCode), o = {rp:0, ra:0, ap:0, aa:0};
   records.forEach(function(r){
     if(!isRC(r) || String(r.date||"").slice(0,7) !== m) return;
-    var amt = paidAmount(r), mine = normCode(r.chargeTo) === key;
+    var amt = paidAmount(r);
+    var mine = rcSplit(r.chargeTo).some(function(p){ return keys.indexOf(normCode(p)) >= 0; });
     if(r.status === "pending"){ o.ap += amt; if(mine) o.rp += amt; }
     else if(r.status === "approved"){ o.aa += amt; if(mine) o.ra += amt; }
   });
   return o;
 }
+/* a payment for two things shows on both lines; the totals count it once */
 function rcRows(){
-  var m = thisMonth(), map = {}, order = [];
+  var m = thisMonth(), map = {}, order = [], tot = {n:0, p:0, a:0}, shared = 0;
   records.forEach(function(r){
     if(!isRC(r)) return;
     if(r.status !== "pending" && r.status !== "approved") return;
     if(rcScope === "month" && String(r.date||"").slice(0,7) !== m) return;
-    var k = r.chargeTo || "—";
-    if(!map[k]){ map[k] = {name:k, n:0, p:0, a:0}; order.push(map[k]); }
-    map[k].n++;
-    if(r.status === "pending") map[k].p += paidAmount(r);
-    else map[k].a += paidAmount(r);
+    var amt = paidAmount(r), parts = rcSplit(r.chargeTo);
+    tot.n++;
+    if(r.status === "pending") tot.p += amt; else tot.a += amt;
+    if(parts.length > 1) shared++;
+    parts.forEach(function(k){
+      if(!map[k]){ map[k] = {name:k, n:0, p:0, a:0}; order.push(map[k]); }
+      map[k].n++;
+      if(r.status === "pending") map[k].p += amt; else map[k].a += amt;
+    });
   });
   order.sort(function(x,y){ return (y.p+y.a) - (x.p+x.a); });
-  return order;
+  return {rows:order, total:tot, shared:shared};
 }
 function renderRunning(){
-  var rows = rcRows(), body = $("rcBody");
+  var d = rcRows(), body = $("rcBody");
   $("rcScopeHint").textContent = rcScope === "month" ? monthName() : "everything so far";
   body.innerHTML = "";
-  $("rcEmpty").style.display = rows.length ? "none" : "block";
-  var tn=0, tp=0, ta=0;
-  rows.forEach(function(x){
-    tn += x.n; tp += x.p; ta += x.a;
+  $("rcEmpty").style.display = d.rows.length ? "none" : "block";
+  d.rows.forEach(function(x){
     var tr = document.createElement("tr");
     tr.innerHTML =
       '<td class="id">'+esc(x.name)+'</td>'+
@@ -1869,10 +1872,13 @@ function renderRunning(){
       '<td class="num"><strong>'+money(x.p+x.a)+'</strong></td>';
     body.appendChild(tr);
   });
-  $("rtCount").textContent = tn;
-  $("rtPending").textContent = money(tp);
-  $("rtApproved").textContent = money(ta);
-  $("rtTotal").textContent = money(tp+ta);
+  $("rcNote").style.display = d.shared ? "" : "none";
+  $("rcNote").textContent = d.shared + (d.shared===1 ? " payment is" : " payments are") +
+    " for more than one thing — each one shows on every line it belongs to, and is counted once in the totals below.";
+  $("rtCount").textContent = d.total.n;
+  $("rtPending").textContent = money(d.total.p);
+  $("rtApproved").textContent = money(d.total.a);
+  $("rtTotal").textContent = money(d.total.p + d.total.a);
 }
 function setRcScope(s){
   rcScope = s;
@@ -1883,7 +1889,7 @@ function setRcScope(s){
 $("rcMonthBtn").onclick = function(){ setRcScope("month"); };
 $("rcAllBtn").onclick   = function(){ setRcScope("all"); };
 $("rcCsvBtn").onclick = function(){
-  var rows = rcRows();
+  var rows = rcRows().rows;
   if(!rows.length){ toast("No running cost to export"); return; }
   var head = ["What for","Requests","Waiting ETB","Approved ETB","Total ETB"];
   var csv = [head].concat(rows.map(function(x){ return [x.name, x.n, x.p, x.a, x.p+x.a]; }))
