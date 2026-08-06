@@ -283,7 +283,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v21</div>
+    <div class="tool">Cash-Out Approval · Internal · v22</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -663,7 +663,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
         <thead>
           <tr>
             <th>Voucher</th><th>Date</th><th>Charge to</th><th>Pay to</th>
-            <th style="text-align:right">Requested</th><th style="text-align:right">Approved</th><th>Status</th>
+            <th style="text-align:right">Requested</th><th style="text-align:right">Approved</th><th>Status</th><th></th>
           </tr>
         </thead>
         <tbody id="logBody"></tbody>
@@ -1505,8 +1505,18 @@ function renderLog(){
       '<td>'+esc(r.payee)+'</td>'+
       '<td class="num">'+money(r.amount)+'</td>'+
       '<td class="num">'+(r.approvedAmount!=null?money(r.approvedAmount):"—")+'</td>'+
-      '<td><span class="tag '+r.status+'">'+(r.status==="hold"?"on hold":r.status)+'</span></td>';
+      '<td><span class="tag '+r.status+'">'+(r.status==="hold"?"on hold":r.status)+'</span></td>'+
+      '<td><button class="del" title="Delete this payment" aria-label="Delete '+r.no+'">×</button></td>';
     tr.onclick = function(){ renderVoucherFromRecord(r); window.scrollTo({top:0,behavior:"smooth"}); };
+    tr.querySelector(".del").onclick = function(e){
+      e.stopPropagation();
+      if(!window.confirm("Delete "+r.no+" — "+money(r.amount)+" ETB to "+(r.payee||"—")+"?")) return;
+      records = records.filter(function(x){ return x !== r; });
+      saveAll();
+      if(current === r){ current = null; renderVoucherFromForm(); }
+      renderLog();
+      toast(r.no+" deleted");
+    };
     body.appendChild(tr);
   });
 
