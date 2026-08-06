@@ -272,7 +272,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v16</div>
+    <div class="tool">Cash-Out Approval · Internal · v17</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -501,6 +501,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
           <label for="rateComm">Commission %<input id="rateComm" inputmode="decimal"></label>
           <label for="rateOver">Overhead /m²<input id="rateOver" inputmode="decimal"></label>
         </div>
+        <button class="chip" id="pAddMoreBtn">+ Add another form</button>
         <button class="chip" id="projPdfBtn">Projects PDF</button>
         <button class="chip" id="projCsvBtn">Export CSV</button>
       </div>
@@ -524,6 +525,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
         <button class="btn solid" id="pSaveBtn">Save project</button>
         <button class="btn ghost" id="pClearBtn">Clear</button>
       </div>
+      <div id="pAddWrap"></div>
     </div>
     <div class="scroll-x">
       <table>
@@ -1587,12 +1589,7 @@ function closeProject(){ $("projOverlay").classList.remove("on"); }
 $("pjClose").onclick = closeProject;
 $("projOverlay").addEventListener("click", function(e){ if(e.target===this) closeProject(); });
 
-$("pSaveBtn").onclick = function(){
-  var code = normCode($("pCode").value);
-  if(!code){ toast("Enter a project code"); $("pCode").focus(); return; }
-  var contract = parseAmt($("pContract").value);
-  if(contract<=0){ toast("Enter the contract total before VAT"); $("pContract").focus(); return; }
-  var m2 = parseAmt($("pM2").value);
+function saveProject(code, contract, m2){
   var existing = null;
   projects.forEach(function(p){ if(p.code===code) existing = p; });
   if(existing){
@@ -1604,7 +1601,42 @@ $("pSaveBtn").onclick = function(){
   }
   kvSave(PKEY, projects);
   renderProjects();
+}
+
+$("pSaveBtn").onclick = function(){
+  var code = normCode($("pCode").value);
+  if(!code){ toast("Enter a project code"); $("pCode").focus(); return; }
+  var contract = parseAmt($("pContract").value);
+  if(contract<=0){ toast("Enter the contract total before VAT"); $("pContract").focus(); return; }
+  var m2 = parseAmt($("pM2").value);
+  saveProject(code, contract, m2);
   $("pCode").value=""; $("pContract").value=""; $("pM2").value="";
+};
+
+$("pAddMoreBtn").onclick = function(){
+  var row = document.createElement("div");
+  row.style.cssText = "border-top:1px dashed var(--rule);padding-top:12px;margin-top:14px";
+  row.innerHTML =
+    '<div class="row three">'+
+      '<div><label class="lbl">Project code</label><input class="in g-code" placeholder="KK142 / RBT 3300" autocomplete="off"></div>'+
+      '<div><label class="lbl">Contract total before VAT (ETB)</label><input class="in g-contract" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>'+
+      '<div><label class="lbl">Size (m²)</label><input class="in g-m2" inputmode="decimal" placeholder="0" autocomplete="off"></div>'+
+    '</div>'+
+    '<div class="actions" style="margin-top:12px">'+
+      '<button class="btn solid g-save">Save project</button>'+
+      '<button class="btn ghost g-remove">× Remove</button>'+
+    '</div>';
+  row.querySelector(".g-remove").onclick = function(){ row.remove(); };
+  row.querySelector(".g-save").onclick = function(){
+    var code = normCode(row.querySelector(".g-code").value);
+    if(!code){ toast("Enter a project code"); row.querySelector(".g-code").focus(); return; }
+    var contract = parseAmt(row.querySelector(".g-contract").value);
+    if(contract<=0){ toast("Enter the contract total before VAT"); row.querySelector(".g-contract").focus(); return; }
+    saveProject(code, contract, parseAmt(row.querySelector(".g-m2").value));
+    row.remove();
+  };
+  $("pAddWrap").appendChild(row);
+  row.querySelector(".g-code").focus();
 };
 $("pClearBtn").onclick = function(){
   $("pCode").value=""; $("pContract").value=""; $("pM2").value="";
