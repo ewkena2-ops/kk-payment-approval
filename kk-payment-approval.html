@@ -246,7 +246,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v8</div>
+    <div class="tool">Cash-Out Approval · Internal · v9</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -294,6 +294,11 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
         </select>
       </div>
 
+      <div class="field" id="otherReasonField" style="display:none">
+        <label class="lbl" for="otherReason">Other — what is it for?</label>
+        <input class="in" id="otherReason" placeholder="Write what it is for" autocomplete="off">
+      </div>
+
       <div class="field">
         <label class="lbl" for="payee">Pay to</label>
         <input class="in" id="payee" placeholder="Supplier or person" autocomplete="off">
@@ -302,6 +307,11 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
       <div class="field">
         <label class="lbl">Spend category — tick all that apply</label>
         <div class="cat-chips" id="categoryChips"></div>
+      </div>
+
+      <div class="field" id="otherCatField" style="display:none">
+        <label class="lbl" for="otherCat">Other — what is it for?</label>
+        <input class="in" id="otherCat" placeholder="Write what the 'Other' is" autocomplete="off">
       </div>
 
       <div class="field">
@@ -691,15 +701,34 @@ var CATEGORIES = ["MDF / panel","Edge band","Hardware & accessories","Hinges / s
     b.setAttribute("aria-pressed","false");
     b.onclick = function(){
       b.setAttribute("aria-pressed", b.getAttribute("aria-pressed")==="true" ? "false" : "true");
+      updateOtherCat();
       renderVoucherFromForm();
     };
     box.appendChild(b);
   });
 })();
+function otherCatOn(){
+  var on = false;
+  Array.prototype.forEach.call(document.querySelectorAll("#categoryChips .chip[aria-pressed='true']"), function(b){
+    if(b.textContent==="Other") on = true;
+  });
+  return on;
+}
+function updateOtherCat(){
+  $("otherCatField").style.display = otherCatOn() ? "" : "none";
+}
+function updateOtherReason(){
+  $("otherReasonField").style.display = (mode==="other" && $("reason").value==="Other") ? "" : "none";
+}
 function selectedCategories(){
   var out = [];
   Array.prototype.forEach.call(document.querySelectorAll("#categoryChips .chip[aria-pressed='true']"), function(b){
-    out.push(b.textContent);
+    var c = b.textContent;
+    if(c==="Other"){
+      var t = $("otherCat").value.trim();
+      if(t) c = "Other: "+t;
+    }
+    out.push(c);
   });
   return out.join(", ");
 }
@@ -707,6 +736,8 @@ function clearCategories(){
   Array.prototype.forEach.call(document.querySelectorAll("#categoryChips .chip"), function(b){
     b.setAttribute("aria-pressed","false");
   });
+  $("otherCat").value = "";
+  updateOtherCat();
 }
 
 /* ---------- form mode ---------- */
@@ -717,15 +748,20 @@ function setMode(m){
   $("btnOther").setAttribute("aria-pressed", m==="other");
   $("projectField").style.display = m==="project" ? "" : "none";
   $("reasonField").style.display  = m==="other" ? "" : "none";
+  updateOtherReason();
   renderVoucherFromForm();
 }
 $("btnProject").onclick=function(){ setMode("project"); };
 $("btnOther").onclick=function(){ setMode("other"); };
 
 function chargeTo(){
-  return mode==="project"
-    ? ($("project").value.trim().toUpperCase() || "—")
-    : ($("reason").value || "—");
+  if(mode==="project") return ($("project").value.trim().toUpperCase() || "—");
+  var r = $("reason").value || "—";
+  if(r==="Other"){
+    var t = $("otherReason").value.trim();
+    if(t) r = "Other: "+t;
+  }
+  return r;
 }
 function checkPaused(){
   var v = $("project").value.trim().toUpperCase().replace(/\s+/g," ");
@@ -792,12 +828,13 @@ function setDecisionEnabled(on){
   ["approveBtn","holdBtn","rejectBtn","signBtn","linkBtn"].forEach(function(id){ $(id).disabled = !on; });
 }
 
-["amount","payee","requester","note","project","needed"].forEach(function(id){
+["amount","payee","requester","note","project","needed","otherCat","otherReason"].forEach(function(id){
   $(id).addEventListener("input", renderVoucherFromForm);
 });
 ["method","reason"].forEach(function(id){
   $(id).addEventListener("change", renderVoucherFromForm);
 });
+$("reason").addEventListener("change", updateOtherReason);
 
 /* ---------- save ---------- */
 $("saveBtn").onclick = function(){
@@ -805,6 +842,8 @@ $("saveBtn").onclick = function(){
   if(amt<=0){ toast("Enter an amount first"); $("amount").focus(); return; }
   if(mode==="project" && !$("project").value.trim()){ toast("Enter a project code"); $("project").focus(); return; }
   if(!$("payee").value.trim()){ toast("Who is being paid?"); $("payee").focus(); return; }
+  if(otherCatOn() && !$("otherCat").value.trim()){ toast("You ticked Other — write what it is for"); $("otherCat").focus(); return; }
+  if(mode==="other" && $("reason").value==="Other" && !$("otherReason").value.trim()){ toast("You chose Other — write what it is for"); $("otherReason").focus(); return; }
 
   var rec = {
     id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
@@ -833,8 +872,9 @@ $("saveBtn").onclick = function(){
 };
 
 $("clearBtn").onclick = function(){
-  ["project","payee","amount","requester","note"].forEach(function(id){ $(id).value=""; });
+  ["project","payee","amount","requester","note","otherReason"].forEach(function(id){ $(id).value=""; });
   clearCategories();
+  updateOtherReason();
   $("needed").value = today();
   $("voucherNo").textContent = nextNo();
   renderVoucherFromForm();
