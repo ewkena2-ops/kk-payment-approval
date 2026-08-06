@@ -236,7 +236,6 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .bv-wrap .seg{max-width:420px;margin-top:10px}
 .bv-wrap .bi-appr{margin-top:8px;max-width:420px}
 .bv .stamp{bottom:18px}
-.bv .bi-proj{padding:10px 20px;font-family:var(--mono);font-size:10.5px;color:var(--steel);border-bottom:1px solid var(--rule-soft)}
 
 /* ---------- extra request forms ---------- */
 .xforms{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;padding:16px}
@@ -279,7 +278,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v24</div>
+    <div class="tool">Cash-Out Approval · Internal · v25</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -1219,7 +1218,7 @@ $("batchLinkBtn").onclick = function(){
     projects.forEach(function(p){ if(p.code===pcode) pj = p; });
     if(pj){
       var c = projCalc(pj);
-      d.proj = {code:pj.code, net:c.net, spent:c.spent, left:c.left};
+      d.proj = {code:pj.code, contract:Number(pj.contract)||0, net:c.net, spent:c.spent, left:c.left};
     }
     return d;
   });
@@ -1257,9 +1256,18 @@ function renderBatch(d){
           '<div class="v-cell"><div class="k">Requested by</div><div class="v">'+esc(it.requester||"—")+'</div></div>'+
         '</div>'+
         '<div class="v-note"><div class="k" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--steel)">Description</div><div class="v" style="margin-top:3px;font-size:13px">'+esc(it.note||"—")+'</div></div>'+
-        (it.proj ? '<div class="bi-proj">'+esc(it.proj.code)+' — net '+money(it.proj.net)+' · spent (incl. this) '+money(it.proj.spent)+' · left '+money(it.proj.left)+'</div>' : '')+
         '<div class="stamp"><span class="btext">Approved</span><span class="meta"></span></div>'+
       '</div>'+
+      (it.proj ?
+        '<div class="panel" style="margin-top:10px">'+
+          '<div class="panel-head"><h2>'+esc(it.proj.code)+' — project money</h2><div class="hint">contract &amp; net</div></div>'+
+          '<div class="pj-stats">'+
+            '<div><div class="k">Contract excl. VAT</div><div class="v">'+(it.proj.contract!=null?money(it.proj.contract):"—")+'</div></div>'+
+            '<div><div class="k">Net</div><div class="v">'+money(it.proj.net)+'</div></div>'+
+            '<div><div class="k">Spent (this one included)</div><div class="v">'+money(it.proj.spent)+'</div></div>'+
+            '<div><div class="k">Left of net</div><div class="v">'+money(it.proj.left)+'</div></div>'+
+          '</div>'+
+        '</div>' : '')+
       '<div class="seg" style="grid-template-columns:1fr 1fr 1fr">'+
         '<button type="button" data-d="approved" aria-pressed="false">Approve</button>'+
         '<button type="button" data-d="hold" aria-pressed="false">Hold</button>'+
