@@ -232,17 +232,11 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .pdf-hiding .del{display:none!important}
 
 /* ---------- batch approval ---------- */
-.bitem{border:1px solid var(--ink);border-radius:2px;margin:14px 16px;padding:14px 16px;position:relative}
-.bitem::before{content:"";position:absolute;inset:4px;border:1px solid var(--rule-soft);pointer-events:none}
-.bitem .words{font-size:11.5px;font-style:italic;color:#33393F;margin:0 0 8px;border-bottom:1px dotted var(--rule);padding-bottom:5px}
-.bitem .bi-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--steel)}
-.bitem .bi-head strong{color:var(--ink);font-size:12px}
-.bitem .bi-amt{font-family:var(--mono);font-size:22px;font-weight:700;margin:6px 0 2px;font-variant-numeric:tabular-nums}
-.bitem .bi-amt em{font-style:normal;font-size:.5em;color:var(--steel);letter-spacing:.08em;margin-left:6px}
-.bitem .bi-sub{font-size:12px;color:#33393F;margin-bottom:10px}
-.bitem .bi-proj{font-family:var(--mono);font-size:10.5px;color:var(--steel);margin-bottom:10px}
-.bitem .seg{max-width:420px}
-.bitem .bi-appr{margin-top:8px;max-width:420px}
+.bv-wrap{margin:16px}
+.bv-wrap .seg{max-width:420px;margin-top:10px}
+.bv-wrap .bi-appr{margin-top:8px;max-width:420px}
+.bv .stamp{bottom:18px}
+.bv .bi-proj{padding:10px 20px;font-family:var(--mono);font-size:10.5px;color:var(--steel);border-bottom:1px solid var(--rule-soft)}
 
 /* ---------- extra request forms ---------- */
 .xforms{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;padding:16px}
@@ -285,7 +279,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
 <header class="masthead no-print">
   <div class="wrap">
     <div class="brand-chip"><img src="image.png" alt="Klever Küche"></div>
-    <div class="tool">Cash-Out Approval · Internal · v23</div>
+    <div class="tool">Cash-Out Approval · Internal · v24</div>
     <div class="clock" id="clock"></div>
   </div>
 </header>
@@ -578,17 +572,6 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
   <section class="panel" id="batchPanel" style="grid-column:1/-1;display:none">
     <div class="panel-head"><h2>Payments to approve</h2><div class="hint" id="batchHint"></div></div>
     <div id="batchCapture" style="background:#fff">
-      <div class="v-head" style="border-bottom:1px solid var(--rule-soft)">
-        <div>
-          <img class="v-logo" src="image.png" alt="Klever Küche">
-          <div class="sub">Klever Addis Trading P.L.C. · Addis Ababa</div>
-        </div>
-        <div class="v-no">
-          Payment approvals
-          <strong id="bCount">—</strong>
-          <span id="bAt">—</span>
-        </div>
-      </div>
       <div id="batchList"></div>
       <div class="v-sign" style="border-top:1px solid var(--rule)">
         <div><div style="height:34px" id="bSigShow"></div><div class="line" id="bSignLine">Approved by · Amare Feleke</div></div>
@@ -1249,19 +1232,34 @@ function renderBatch(d){
   $("batchPanel").style.display = "";
   var items = d.items||[];
   $("batchHint").textContent = items.length+" payment"+(items.length>1?"s":"")+" · tick each one · sign once · send back";
-  $("bCount").textContent = items.length+" payment"+(items.length>1?"s":"");
-  $("bAt").textContent = fmtDate(d.at || today());
   var list = $("batchList");
   items.forEach(function(it, i){
     bDecisions.push(null);
     var div = document.createElement("div");
-    div.className = "bitem";
+    div.className = "bv-wrap";
     div.innerHTML =
-      '<div class="bi-head"><strong>'+esc(it.no)+'</strong><span>'+esc(it.chargeTo)+' · '+fmtDate(it.date)+'</span></div>'+
-      '<div class="bi-amt">'+money(it.amount)+'<em>ETB</em></div>'+
-      '<div class="words">'+birrWords(it.amount)+'</div>'+
-      '<div class="bi-sub">Pay to '+esc(it.payee||"—")+' · '+esc(it.category||"—")+(it.note?' · '+esc(it.note):'')+'</div>'+
-      (it.proj ? '<div class="bi-proj">'+esc(it.proj.code)+' — net '+money(it.proj.net)+' · spent (incl. this) '+money(it.proj.spent)+' · left '+money(it.proj.left)+'</div>' : '')+
+      '<div class="voucher bv">'+
+        '<div class="v-head">'+
+          '<div><img class="v-logo" src="image.png" alt="Klever Küche"><div class="sub">Klever Addis Trading P.L.C. · Addis Ababa</div></div>'+
+          '<div class="v-no">Payment voucher<strong>'+esc(it.no)+'</strong><span>'+fmtDate(it.date)+'</span></div>'+
+        '</div>'+
+        '<div class="v-amount">'+
+          '<div class="cap">Amount to release</div>'+
+          '<div class="big">'+money(it.amount)+'<em>ETB</em></div>'+
+          '<div class="words">'+birrWords(it.amount)+'</div>'+
+        '</div>'+
+        '<div class="v-grid">'+
+          '<div class="v-cell"><div class="k">Charge to</div><div class="v">'+esc(it.chargeTo||"—")+'</div></div>'+
+          '<div class="v-cell"><div class="k">Category</div><div class="v">'+esc(it.category||"—")+'</div></div>'+
+          '<div class="v-cell"><div class="k">Pay to</div><div class="v">'+esc(it.payee||"—")+'</div></div>'+
+          '<div class="v-cell"><div class="k">Pay by</div><div class="v">'+methodHTML(it.method||"—")+'</div></div>'+
+          '<div class="v-cell"><div class="k">Needed by</div><div class="v">'+fmtDate(it.needed)+'</div></div>'+
+          '<div class="v-cell"><div class="k">Requested by</div><div class="v">'+esc(it.requester||"—")+'</div></div>'+
+        '</div>'+
+        '<div class="v-note"><div class="k" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--steel)">Description</div><div class="v" style="margin-top:3px;font-size:13px">'+esc(it.note||"—")+'</div></div>'+
+        (it.proj ? '<div class="bi-proj">'+esc(it.proj.code)+' — net '+money(it.proj.net)+' · spent (incl. this) '+money(it.proj.spent)+' · left '+money(it.proj.left)+'</div>' : '')+
+        '<div class="stamp"><span class="btext">Approved</span><span class="meta"></span></div>'+
+      '</div>'+
       '<div class="seg" style="grid-template-columns:1fr 1fr 1fr">'+
         '<button type="button" data-d="approved" aria-pressed="false">Approve</button>'+
         '<button type="button" data-d="hold" aria-pressed="false">Hold</button>'+
@@ -1269,11 +1267,15 @@ function renderBatch(d){
       '</div>'+
       '<input class="in bi-appr" inputmode="decimal" placeholder="Approved amount — leave blank for full" style="display:none">';
     var appr = div.querySelector(".bi-appr");
+    var stamp = div.querySelector(".stamp");
     Array.prototype.forEach.call(div.querySelectorAll(".seg button"), function(b){
       b.onclick = function(){
         bDecisions[i] = b.dataset.d;
         Array.prototype.forEach.call(div.querySelectorAll(".seg button"), function(x){ x.setAttribute("aria-pressed", x===b); });
         appr.style.display = b.dataset.d==="approved" ? "" : "none";
+        stamp.className = "stamp show "+b.dataset.d;
+        stamp.querySelector(".btext").textContent = b.dataset.d==="approved" ? "Approved" : (b.dataset.d==="hold" ? "On hold" : "Rejected");
+        stamp.querySelector(".meta").textContent = (($("bName").value||"").trim()||SIGNER)+" · "+fmtDate(today());
       };
     });
     list.appendChild(div);
