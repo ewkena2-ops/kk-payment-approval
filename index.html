@@ -452,7 +452,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
           <button class="btn no" id="rejectBtn" disabled>Reject</button>
           <button class="btn" id="signBtn" disabled>Sign on screen</button>
           <button class="btn solid" id="linkBtn">Approval link to send</button>
-          <button class="btn" id="tinyBtn" title="Same link made tiny by is.gd — needs internet, and the link is stored on their server">Tiny link</button>
+          <button class="btn" id="tinyBtn" title="Same link made tiny by lnk.ua — needs internet, and the link is stored on their server">Tiny link</button>
           <button class="btn ghost" id="pdfFormBtn">Approval PDF (old way)</button>
           <button class="btn" id="pdfBtn">Final PDF</button>
           <button class="btn ghost" id="printBtn">Print</button>
@@ -504,7 +504,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
         </div>
         <button class="chip" id="pAddMoreBtn">+ Add another form</button>
         <button class="chip" id="projLinkBtn">Link for owner</button>
-        <button class="chip" id="projTinyBtn" title="Same link made tiny by is.gd — needs internet, and the link is stored on their server">Tiny link</button>
+        <button class="chip" id="projTinyBtn" title="Same link made tiny by lnk.ua — needs internet, and the link is stored on their server">Tiny link</button>
         <button class="chip" id="projPdfBtn">Projects PDF</button>
         <button class="chip" id="projCsvBtn">Export CSV</button>
       </div>
@@ -676,7 +676,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
         <button class="chip" data-filter="hold" aria-pressed="false">On hold</button>
         <button class="chip" data-filter="rejected" aria-pressed="false">Rejected</button>
         <button class="chip" id="batchLinkBtn">Approval link — all pending</button>
-        <button class="chip" id="batchTinyBtn" title="Same link made tiny by is.gd — needs internet, and the link is stored on their server">Tiny link</button>
+        <button class="chip" id="batchTinyBtn" title="Same link made tiny by lnk.ua — needs internet, and the link is stored on their server">Tiny link</button>
         <button class="chip" id="csvBtn">Export CSV</button>
       </div>
     </div>
@@ -1406,59 +1406,43 @@ function shareUrl(url, title, msg){
 /* tiny link: an outside service swaps the long link for a few letters — needs internet,
    and that service keeps the payment link on its server. Only ever on a press, never on its own.
 
-   Checked 2026-08-07 the way the approver's phone really sees it: a fresh link, opened at
-   once, with a phone browser, following every hop. Nearly all of them fail that test even
-   though they look perfect to a plain fetch from a script.
-     is.gd    20 characters, one 301 straight to the voucher, nothing in between   <- used
-     ulvis    22 and just as clean, but sends no CORS header — the browser refuses the call
-     da.gd    20, but shows a "created recently" warning the approver must click past
-     tinyurl  28, and every link now detours through a preview page carrying adverts
-     clck.ru  22, and drops the # payload — the voucher arrives empty
-     cleanuri 27, sits behind a Cloudflare challenge
-   is.gd is tried first because it is the only clean one left. It sends no CORS header
-   either, so we call it the way its own API documents for cross-domain use — a <script>
-   tag with a callback (JSONP), which browsers always allow.
-
-   da.gd is the backup, and only the backup. Its warning page is unwelcome, but it is the
-   one short link we have actually watched work from a browser, and one click-through beats
-   a 243-character link. You can tell which one answered by looking at the link itself.
-   If neither answers, the full link goes out unchanged — no adverts, ever. */
-function jsonp(src, name){
-  return new Promise(function(res, rej){
-    var tag = document.createElement("script"), timer;
-    function cleanup(){
-      clearTimeout(timer);
-      try{ delete window[name]; }catch(e){ window[name] = undefined; }
-      if(tag.parentNode) tag.parentNode.removeChild(tag);
-    }
-    timer = setTimeout(function(){ cleanup(); rej(new Error("timeout")); }, 15000);
-    window[name] = function(data){ cleanup(); res(data); };
-    tag.onerror = function(){ cleanup(); rej(new Error("blocked")); };
-    tag.src = src;
-    document.head.appendChild(tag);
-  });
-}
-function goodShort(s, url){
-  /* must look like a link, and must actually be shorter — otherwise it was an error page */
-  s = String(s||"").trim();
-  if(!/^https?:\/\/\S+$/.test(s) || s.length >= url.length) throw new Error("refused");
-  return s;
-}
-function viaIsGd(url){
-  /* a fresh callback name each press, so two quick presses cannot collide */
-  var name = "kkShort" + Date.now().toString(36) + Math.floor(Math.random()*1e9).toString(36);
-  return jsonp("https://is.gd/create.php?format=json&logstats=0&callback=" + name +
-               "&url=" + encodeURIComponent(url), name)
-    .then(function(d){ return goodShort(d && d.shorturl, url); });
-}
-function viaDaGd(url){
+   A shortener can pass one test and fail every other, so all of these were checked on
+   2026-08-07 against what a phone actually needs: the browser must be allowed to call it
+   (CORS — including the OPTIONS preflight a JSON POST triggers), a FRESH link must open
+   straight through with no advert or warning page in between, and the # payload must
+   survive the hop to the voucher.
+     lnk.ua     24 characters, clean 5 times out of 5, about 250ms         <- used
+     urlvanish  30 and just as clean — the spare, for when lnk.ua is down
+     is.gd      20 and clean, but refuses far more often than it answers
+     ulvis      22 and clean, but sends no CORS header — the browser never makes the call
+     da.gd      19, with a "created recently" warning that does not expire
+     tinyurl    28, and every link now detours through a preview page carrying adverts
+     clck.ru    22, and drops the # payload — the voucher arrives empty
+     cleanuri   27, sits behind a Cloudflare challenge
+   Both services in use are clean ones. If they both refuse, the full link goes out
+   unchanged — he never gets handed an advert or a phishing warning to explain. */
+function postShort(api, headers, body, pick, url){
   if(!window.fetch) return Promise.reject(new Error("no fetch"));
-  return fetch("https://da.gd/shorten?url=" + encodeURIComponent(url))
-    .then(function(r){ return r.ok ? r.text() : Promise.reject(new Error("http")); })
-    .then(function(t){ return goodShort(t, url); });
+  headers["Content-Type"] = "application/json";
+  return fetch(api, {method:"POST", headers:headers, body:JSON.stringify(body)})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(new Error("http")); })
+    .then(function(j){
+      var s = String(pick(j) || "").trim();
+      /* must look like a link, and must actually be shorter — otherwise it was an error */
+      if(!/^https?:\/\/\S+$/.test(s) || s.length >= url.length) throw new Error("refused");
+      return s;
+    });
+}
+function viaLnkUa(url){
+  return postShort("https://lnk.ua/api/v1/link/create", {"Authorization":"Bearer public"},
+    {link:url}, function(j){ return j && j.result && j.result.lnk; }, url);
+}
+function viaUrlVanish(url){
+  return postShort("https://urlvanish.com/create_api.php", {},
+    {originalUrl:url}, function(j){ return j && j.alias; }, url);
 }
 function fetchShort(url){
-  return viaIsGd(url).catch(function(){ return viaDaGd(url); });
+  return viaLnkUa(url).catch(function(){ return viaUrlVanish(url); });
 }
 function shortenAndShare(url, title, btn){
   var label = btn.textContent;
