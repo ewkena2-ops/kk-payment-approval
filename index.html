@@ -452,7 +452,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
           <button class="btn no" id="rejectBtn" disabled>Reject</button>
           <button class="btn" id="signBtn" disabled>Sign on screen</button>
           <button class="btn solid" id="linkBtn">Approval link to send</button>
-          <button class="btn" id="tinyBtn" title="Same link made tiny by da.gd — needs internet, and the link is stored on their server">Tiny link</button>
+          <button class="btn" id="tinyBtn" title="Same link made tiny by ulvis.net — needs internet, and the link is stored on their server">Tiny link</button>
           <button class="btn ghost" id="pdfFormBtn">Approval PDF (old way)</button>
           <button class="btn" id="pdfBtn">Final PDF</button>
           <button class="btn ghost" id="printBtn">Print</button>
@@ -504,7 +504,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
         </div>
         <button class="chip" id="pAddMoreBtn">+ Add another form</button>
         <button class="chip" id="projLinkBtn">Link for owner</button>
-        <button class="chip" id="projTinyBtn" title="Same link made tiny by da.gd — needs internet, and the link is stored on their server">Tiny link</button>
+        <button class="chip" id="projTinyBtn" title="Same link made tiny by ulvis.net — needs internet, and the link is stored on their server">Tiny link</button>
         <button class="chip" id="projPdfBtn">Projects PDF</button>
         <button class="chip" id="projCsvBtn">Export CSV</button>
       </div>
@@ -676,7 +676,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
         <button class="chip" data-filter="hold" aria-pressed="false">On hold</button>
         <button class="chip" data-filter="rejected" aria-pressed="false">Rejected</button>
         <button class="chip" id="batchLinkBtn">Approval link — all pending</button>
-        <button class="chip" id="batchTinyBtn" title="Same link made tiny by da.gd — needs internet, and the link is stored on their server">Tiny link</button>
+        <button class="chip" id="batchTinyBtn" title="Same link made tiny by ulvis.net — needs internet, and the link is stored on their server">Tiny link</button>
         <button class="chip" id="csvBtn">Export CSV</button>
       </div>
     </div>
@@ -1406,13 +1406,18 @@ function shareUrl(url, title, msg){
 /* tiny link: an outside service swaps the long link for a few letters — needs internet,
    and that service keeps the payment link on its server. Only ever on a press, never on its own.
 
-   Shortest first; if one is down or refuses, the next one takes over, so the button
-   still works when a small service has a bad day.
-     da.gd    https://da.gd/xdLgA           19-20 characters   free, no account, no ads
-     tinyurl  https://tinyurl.com/27342vp3  28 characters      the old faithful, last resort */
+   Checked 2026-08-07 the way the approver's phone really sees it — a fresh link, opened
+   at once, with a phone browser. Most shorteners fail that test even though they look
+   fine to a plain fetch:
+     ulvis.net  22 characters, one 301 straight to the voucher, nothing in between  <- used
+     tinyurl    28, bounces through an advert-carrying preview page
+     da.gd      19, but shows a "created recently" warning the approver must click past
+     clck.ru    22, and drops the # payload — the voucher arrives empty
+     cleanuri   27, sits behind a Cloudflare challenge
+   If ulvis is down we send the full link instead. A long link that just works beats a
+   short one that shows his boss an advert or a phishing warning. */
 var SHORTENERS = [
-  function(u){ return "https://da.gd/shorten?url=" + encodeURIComponent(u); },
-  function(u){ return "https://tinyurl.com/api-create.php?url=" + encodeURIComponent(u); }
+  function(u){ return "https://ulvis.net/api.php?url=" + encodeURIComponent(u); }
 ];
 function fetchShort(url, i){
   if(i >= SHORTENERS.length) return Promise.reject(new Error("all refused"));
