@@ -1350,7 +1350,13 @@ var APPROVAL = null, OWNER = null, BATCH = null;
   try{ if((v = grab(/^#b=(.+)$/))) BATCH = b64d(v); }catch(e){ BATCH = null; }
 })();
 
-function linkFor(tag, o){ return location.href.split("#")[0] + "#" + tag + "=" + packLink(o); }
+/* The address we hand out, trimmed: no leftover ?query, and no "index.html" on a web
+   address — the folder alone opens the app. (Kept on file:// links, where it is needed.)
+   Shortest home is the root site https://ewkena2-ops.github.io/ — no folder at all. */
+function linkBase(){
+  return location.href.split("#")[0].split("?")[0].replace(/^(https?:.*\/)index\.html$/, "$1");
+}
+function linkFor(tag, o){ return linkBase() + "#" + tag + "=" + packLink(o); }
 function payLink(){
   if(!current){ toast("Save or select a request first"); return null; }
   return {url: linkFor("1", packPay(current)), title: "Payment approval "+current.no};
