@@ -452,7 +452,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
           <button class="btn no" id="rejectBtn" disabled>Reject</button>
           <button class="btn" id="signBtn" disabled>Sign on screen</button>
           <button class="btn solid" id="linkBtn">Approval link to send</button>
-          <button class="btn" id="tinyBtn" title="Same link made tiny by ulvis.net — needs internet, and the link is stored on their server">Tiny link</button>
+          <button class="btn" id="tinyBtn" title="Same link made tiny by is.gd — needs internet, and the link is stored on their server">Tiny link</button>
           <button class="btn ghost" id="pdfFormBtn">Approval PDF (old way)</button>
           <button class="btn" id="pdfBtn">Final PDF</button>
           <button class="btn ghost" id="printBtn">Print</button>
@@ -504,7 +504,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
         </div>
         <button class="chip" id="pAddMoreBtn">+ Add another form</button>
         <button class="chip" id="projLinkBtn">Link for owner</button>
-        <button class="chip" id="projTinyBtn" title="Same link made tiny by ulvis.net — needs internet, and the link is stored on their server">Tiny link</button>
+        <button class="chip" id="projTinyBtn" title="Same link made tiny by is.gd — needs internet, and the link is stored on their server">Tiny link</button>
         <button class="chip" id="projPdfBtn">Projects PDF</button>
         <button class="chip" id="projCsvBtn">Export CSV</button>
       </div>
@@ -676,7 +676,7 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
         <button class="chip" data-filter="hold" aria-pressed="false">On hold</button>
         <button class="chip" data-filter="rejected" aria-pressed="false">Rejected</button>
         <button class="chip" id="batchLinkBtn">Approval link — all pending</button>
-        <button class="chip" id="batchTinyBtn" title="Same link made tiny by ulvis.net — needs internet, and the link is stored on their server">Tiny link</button>
+        <button class="chip" id="batchTinyBtn" title="Same link made tiny by is.gd — needs internet, and the link is stored on their server">Tiny link</button>
         <button class="chip" id="csvBtn">Export CSV</button>
       </div>
     </div>
@@ -1406,42 +1406,70 @@ function shareUrl(url, title, msg){
 /* tiny link: an outside service swaps the long link for a few letters — needs internet,
    and that service keeps the payment link on its server. Only ever on a press, never on its own.
 
-   Checked 2026-08-07 the way the approver's phone really sees it — a fresh link, opened
-   at once, with a phone browser. Most shorteners fail that test even though they look
-   fine to a plain fetch:
-     ulvis.net  22 characters, one 301 straight to the voucher, nothing in between  <- used
-     tinyurl    28, bounces through an advert-carrying preview page
-     da.gd      19, but shows a "created recently" warning the approver must click past
-     clck.ru    22, and drops the # payload — the voucher arrives empty
-     cleanuri   27, sits behind a Cloudflare challenge
-   If ulvis is down we send the full link instead. A long link that just works beats a
-   short one that shows his boss an advert or a phishing warning. */
-var SHORTENERS = [
-  function(u){ return "https://ulvis.net/api.php?url=" + encodeURIComponent(u); }
-];
-function fetchShort(url, i){
-  if(i >= SHORTENERS.length) return Promise.reject(new Error("all refused"));
-  return fetch(SHORTENERS[i](url))
+   Checked 2026-08-07 the way the approver's phone really sees it: a fresh link, opened at
+   once, with a phone browser, following every hop. Nearly all of them fail that test even
+   though they look perfect to a plain fetch from a script.
+     is.gd    20 characters, one 301 straight to the voucher, nothing in between   <- used
+     ulvis    22 and just as clean, but sends no CORS header — the browser refuses the call
+     da.gd    20, but shows a "created recently" warning the approver must click past
+     tinyurl  28, and every link now detours through a preview page carrying adverts
+     clck.ru  22, and drops the # payload — the voucher arrives empty
+     cleanuri 27, sits behind a Cloudflare challenge
+   is.gd is tried first because it is the only clean one left. It sends no CORS header
+   either, so we call it the way its own API documents for cross-domain use — a <script>
+   tag with a callback (JSONP), which browsers always allow.
+
+   da.gd is the backup, and only the backup. Its warning page is unwelcome, but it is the
+   one short link we have actually watched work from a browser, and one click-through beats
+   a 243-character link. You can tell which one answered by looking at the link itself.
+   If neither answers, the full link goes out unchanged — no adverts, ever. */
+function jsonp(src, name){
+  return new Promise(function(res, rej){
+    var tag = document.createElement("script"), timer;
+    function cleanup(){
+      clearTimeout(timer);
+      try{ delete window[name]; }catch(e){ window[name] = undefined; }
+      if(tag.parentNode) tag.parentNode.removeChild(tag);
+    }
+    timer = setTimeout(function(){ cleanup(); rej(new Error("timeout")); }, 15000);
+    window[name] = function(data){ cleanup(); res(data); };
+    tag.onerror = function(){ cleanup(); rej(new Error("blocked")); };
+    tag.src = src;
+    document.head.appendChild(tag);
+  });
+}
+function goodShort(s, url){
+  /* must look like a link, and must actually be shorter — otherwise it was an error page */
+  s = String(s||"").trim();
+  if(!/^https?:\/\/\S+$/.test(s) || s.length >= url.length) throw new Error("refused");
+  return s;
+}
+function viaIsGd(url){
+  /* a fresh callback name each press, so two quick presses cannot collide */
+  var name = "kkShort" + Date.now().toString(36) + Math.floor(Math.random()*1e9).toString(36);
+  return jsonp("https://is.gd/create.php?format=json&logstats=0&callback=" + name +
+               "&url=" + encodeURIComponent(url), name)
+    .then(function(d){ return goodShort(d && d.shorturl, url); });
+}
+function viaDaGd(url){
+  if(!window.fetch) return Promise.reject(new Error("no fetch"));
+  return fetch("https://da.gd/shorten?url=" + encodeURIComponent(url))
     .then(function(r){ return r.ok ? r.text() : Promise.reject(new Error("http")); })
-    .then(function(t){
-      t = String(t||"").trim();
-      /* must look like a link, and must actually be shorter — otherwise it was an error page */
-      if(!/^https?:\/\/\S+$/.test(t) || t.length >= url.length) throw new Error("bad answer");
-      return t;
-    })
-    .catch(function(){ return fetchShort(url, i+1); });
+    .then(function(t){ return goodShort(t, url); });
+}
+function fetchShort(url){
+  return viaIsGd(url).catch(function(){ return viaDaGd(url); });
 }
 function shortenAndShare(url, title, btn){
   var label = btn.textContent;
   function done(){ btn.disabled = false; btn.textContent = label; }
-  if(!window.fetch){ shareUrl(url, title, "This browser cannot make short links — full one copied"); return; }
   btn.disabled = true; btn.textContent = "Shortening…";
-  fetchShort(url, 0)
+  fetchShort(url)
     .then(function(t){ done(); shareUrl(t, title); })
     .catch(function(){
       done();
-      if(navigator.share) toast("No short link — sending the full one");
-      shareUrl(url, title, "No short link — the full one is copied instead");
+      if(navigator.share) toast("Short link service busy — sending the full one");
+      shareUrl(url, title, "Short link service busy — the full one is copied instead");
     });
 }
 
