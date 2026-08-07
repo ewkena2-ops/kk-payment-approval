@@ -451,8 +451,8 @@ td.id{font-family:var(--mono);font-size:11px;white-space:nowrap}
           <button class="btn hold" id="holdBtn" disabled>Put on hold</button>
           <button class="btn no" id="rejectBtn" disabled>Reject</button>
           <button class="btn" id="signBtn" disabled>Sign on screen</button>
-          <button class="btn solid" id="linkBtn" disabled>Approval link to send</button>
-          <button class="btn" id="tinyBtn" disabled title="Same link made tiny by da.gd — needs internet, and the link is stored on their server">Tiny link</button>
+          <button class="btn solid" id="linkBtn">Approval link to send</button>
+          <button class="btn" id="tinyBtn" title="Same link made tiny by da.gd — needs internet, and the link is stored on their server">Tiny link</button>
           <button class="btn ghost" id="pdfFormBtn">Approval PDF (old way)</button>
           <button class="btn" id="pdfBtn">Final PDF</button>
           <button class="btn ghost" id="printBtn">Print</button>
@@ -1026,7 +1026,11 @@ function renderVoucherFromRecord(r){
   $("approver").value = r.approver || $("approver").value;
 }
 function setDecisionEnabled(on){
-  ["approveBtn","holdBtn","rejectBtn","signBtn","linkBtn","tinyBtn"].forEach(function(id){ $(id).disabled = !on; });
+  /* Decisions need a saved voucher, so they stay off until there is one.
+     The two link buttons stay pressable on purpose: pressing them when nothing is
+     saved says "Save or select a request first" out loud, which beats a grey button
+     that gives no reason at all. */
+  ["approveBtn","holdBtn","rejectBtn","signBtn"].forEach(function(id){ $(id).disabled = !on; });
 }
 
 ["amount","payee","requester","note","project","needed","otherCat","otherReason"].forEach(function(id){
